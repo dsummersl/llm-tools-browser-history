@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "llm-tools-browser-history"
+version = "0.1.0"
+description = "Project description for LLM Tools Browser History"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Dane Summers", email = "dsummersl@gmail.com" }]
+license = { text = "Apache-2.0" }
+classifiers = [
+"Programming Language :: Python :: 3",
+"License :: OSI Approved",
+"Typing :: Typed",
+]
+
+
+[project.urls]
+Homepage = "https://github.com/your-org/llm-tools-browser-history"
+
+[dependency-groups]
+dev = [
+"pytest>=8",
+"pytest-cov>=6",
+"ruff>=0.5",
+"mypy>=1.10",
+"pre-commit>=3.7"
+]
+
+[tool.ruff]
+line-length = 100
+exclude = [".venv", ".git", "build", "dist"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["browser_history"]
+
+[tool.hatch.build.targets.sdist]
+include = ["browser_history/**", "README.md", "pyproject.toml", "LICENSE"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=browser_history"
