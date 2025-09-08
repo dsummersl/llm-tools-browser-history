@@ -1,8 +1,3 @@
-[build-system]
-requires = ["hatchling>=1.25.0"]
-build-backend = "hatchling.build"
-
-
 [project]
 name = "llm-tools-browser-history"
 version = "0.1.0"
@@ -16,10 +11,12 @@ classifiers = [
 "License :: OSI Approved",
 "Typing :: Typed",
 ]
+dependencies = [
+    "llm>=0.27.1",
+]
 
-
-[project.urls]
-Homepage = "https://github.com/your-org/llm-tools-browser-history"
+[project.entry-points.llm]
+llm_tool_browser_history = "browser_history"
 
 [dependency-groups]
 dev = [
@@ -38,9 +35,6 @@ exclude = [".venv", ".git", "build", "dist"]
 python_version = "3.11"
 strict = true
 packages = ["browser_history"]
-
-[tool.hatch.build.targets.sdist]
-include = ["browser_history/**", "README.md", "pyproject.toml", "LICENSE"]
 
 [tool.pytest.ini_options]
 addopts = "--cov=browser_history"
