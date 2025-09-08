@@ -1,5 +1,7 @@
 from __future__ import annotations
-import json, datetime, pathlib
+import json
+import datetime
+import pathlib
 import llm
 from typing import Iterable
 
@@ -25,8 +27,6 @@ class BrowserHistory(llm.Toolbox):
                 self.sources.append(("firefox", p))
         if "chrome" in sources:
             for p in find_chrome_history_paths():
-                # Heuristic: label as chromium if path suggests Chromium
-                ps = [part.lower() for part in p.parts]
                 self.sources.append(("chrome", p))
         if "safari" in sources:
             for p in find_safari_history_paths():

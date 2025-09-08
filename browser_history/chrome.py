@@ -3,7 +3,7 @@ import pathlib
 import datetime
 import glob
 
-from browser_history.types import NormalizedRow, BrowserType
+from browser_history.types import NormalizedRow
 from .sqlite import history_query
 
 WEBKIT_EPOCH = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
