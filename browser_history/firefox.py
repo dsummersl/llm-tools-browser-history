@@ -57,11 +57,14 @@ def query_firefox(
         params["end"] = end_us
 
     with history_query(SQL, params, db_path) as rows:
-        return list(map(lambda r: NormalizedRow(
-            url=r["url"],
-            title=r["title"],
-            browser="firefox",
-            visited_at=_iso_from_microseconds(r["visited_at_us"]) if r["visited_at_us"] else None,
-            visit_count=r["visit_count"],
-            profile_path=str(db_path.parent),
-        ), rows))
+        return [
+            NormalizedRow(
+                url=r["url"],
+                title=r["title"],
+                browser="firefox",
+                visited_at=_iso_from_microseconds(r["visited_at_us"]) if r["visited_at_us"] else None,
+                visit_count=r["visit_count"],
+                profile_path=str(db_path.parent),
+            )
+            for r in rows
+        ]

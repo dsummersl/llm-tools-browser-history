@@ -4,7 +4,6 @@ from contextlib import contextmanager
 import pathlib
 import tempfile
 import shutil
-from .types import BrowserType
 
 
 def _copy_locked_db(path: pathlib.Path) -> pathlib.Path:

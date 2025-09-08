@@ -3,7 +3,7 @@ import pathlib
 import datetime
 import glob
 
-from browser_history.types import NormalizedRow
+from browser_history.types import NormalizedRow, BrowserType
 from .sqlite import history_query
 
 WEBKIT_EPOCH = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
@@ -67,18 +67,16 @@ def query_chrome(
         params["end"] = end_wk
 
     with history_query(SQL, params, db_path) as rows:
-        return list(
-            map(
-                lambda r: NormalizedRow(
-                    url=r["url"],
-                    title=r["title"],
-                    browser="firefox",
-                    visited_at=_iso_from_webkit_microseconds(r["visited_at_wk"])
-                    if r["visited_at_wk"]
-                    else None,
-                    visit_count=r["visit_count"],
-                    profile_path=str(db_path.parent),
-                ),
-                rows,
+        return [
+            NormalizedRow(
+                url=r["url"],
+                title=r["title"],
+                browser="chrome",
+                visited_at=_iso_from_webkit_microseconds(r["visited_at_wk"])
+                if r["visited_at_wk"]
+                else None,
+                visit_count=r["visit_count"],
+                profile_path=str(db_path.parent),
             )
-        )
+            for r in rows
+        ]

@@ -1,10 +1,12 @@
 from __future__ import annotations
 import json, datetime, pathlib
 import llm
-from typing import Optional, Iterable, Tuple
+from typing import Iterable
 
 from .firefox import query_firefox, find_firefox_places_sqlite
 from .chrome import query_chrome, find_chrome_history_paths
+from .safari import query_safari, find_safari_history_paths
+from .types import BrowserType
 
 
 class BrowserHistory(llm.Toolbox):
@@ -12,11 +14,11 @@ class BrowserHistory(llm.Toolbox):
     Toolbox allowing search through browser history.
     """
 
-    def __init__(self, sources: Optional[Iterable[str]] = None):
+    def __init__(self, sources: Iterable[str | None] = None):
         self.sources: list[tuple[str, pathlib.Path]] = []
 
         if not sources:
-            sources = ["firefox", "chrome"]
+            sources = [b.value for b in BrowserType]
 
         if "firefox" in sources:
             for p in find_firefox_places_sqlite():
@@ -25,10 +27,12 @@ class BrowserHistory(llm.Toolbox):
             for p in find_chrome_history_paths():
                 # Heuristic: label as chromium if path suggests Chromium
                 ps = [part.lower() for part in p.parts]
-                browser = "chromium" if any("chromium" in part for part in ps) else "chrome"
-                self.sources.append((browser, p))
+                self.sources.append(("chrome", p))
+        if "safari" in sources:
+            for p in find_safari_history_paths():
+                self.sources.append(("safari", p))
 
-    def _parse_iso(self, s: Optional[str]) -> Optional[datetime.datetime]:
+    def _parse_iso(self, s: str | None) -> datetime.datetime | None:
         if not s:
             return None
         dt = datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
@@ -38,9 +42,9 @@ class BrowserHistory(llm.Toolbox):
 
     def search(
         self,
-        text: Optional[str] = None,
-        start: Optional[str] = None,
-        end: Optional[str] = None,
+        text: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
         limit: int = 50,
     ) -> str:
         """
@@ -55,21 +59,35 @@ class BrowserHistory(llm.Toolbox):
 
         rows = []
         for browser, browser_path in self.sources:
-            if browser in ("chrome", "chromium"):
-                rows.extend(query_chrome(
-                    browser_path,
-                    text,
-                    start_dt,
-                    end_dt,
-                    limit,
-                ))
+            if browser == "chrome":
+                rows.extend(
+                    query_chrome(
+                        browser_path,
+                        text=text,
+                        start=start_dt,
+                        end=end_dt,
+                        limit=limit,
+                    )
+                )
             elif browser == "firefox":
-                rows.extend(query_firefox(
-                    browser_path,
-                    text,
-                    start_dt,
-                    end_dt,
-                    limit,
-                ))
+                rows.extend(
+                    query_firefox(
+                        browser_path,
+                        text,
+                        start_dt,
+                        end_dt,
+                        limit,
+                    )
+                )
+            elif browser == "safari":
+                rows.extend(
+                    query_safari(
+                        browser_path,
+                        text,
+                        start_dt,
+                        end_dt,
+                        limit,
+                    )
+                )
 
         return json.dumps(rows, indent=2)
