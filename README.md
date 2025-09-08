@@ -2,6 +2,12 @@
 
 A tool for the [llm](https://llm.datasette.io/) command line that allows searching local browser history.
 
+**Security and Privacy Warning**
+
+This tool has read-access to your entire browser history. You risk sending
+this highly sensitive personal data to third-party services (like OpenAI). Be mindful of your queries. Use models
+that run locally or use llm's features to confirm before sending data to a remote model.
+
 # Usage
 
 The BrowserHistory tool allows your llm queries to search the local browsing history on your local machine:
