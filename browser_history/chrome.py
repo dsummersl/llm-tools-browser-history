@@ -1,18 +1,17 @@
 from __future__ import annotations
 import pathlib
-import sqlite3
-import tempfile
-import shutil
 import datetime
 import glob
-from typing import Iterable, Optional, Dict, Any, List
+
+from browser_history.types import NormalizedRow
+from .sqlite import history_query
 
 WEBKIT_EPOCH = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
 
 
-def find_chrome_history_paths() -> List[pathlib.Path]:
+def find_chrome_history_paths() -> list[pathlib.Path]:
     home = pathlib.Path.home()
-    candidates: List[pathlib.Path] = []
+    candidates: list[pathlib.Path] = []
     mac_chrome = home / "Library" / "Application Support" / "Google" / "Chrome" / "*" / "History"
     mac_chromium = home / "Library" / "Application Support" / "Chromium" / "*" / "History"
     linux_chrome = home / ".config" / "google-chrome" / "*" / "History"
@@ -23,26 +22,7 @@ def find_chrome_history_paths() -> List[pathlib.Path]:
     return candidates
 
 
-def get_default_chrome_history() -> Optional[pathlib.Path]:
-    paths = find_chrome_history_paths()
-    if not paths:
-        return None
-    preferred = [p for p in paths if p.parent.name.lower() == "default"]
-    if preferred:
-        preferred.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        return preferred[0]
-    paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return paths[0]
-
-
-def _copy_locked_db(path: pathlib.Path) -> pathlib.Path:
-    tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="llm_bh_ch_"))
-    dst = tmpdir / path.name
-    shutil.copy2(path, dst)
-    return dst
-
-
-def _iso_from_webkit_microseconds(us: Optional[int]) -> Optional[str]:
+def _iso_from_webkit_microseconds(us: int | None) -> str | None:
     if not us:
         return None
     dt = WEBKIT_EPOCH + datetime.timedelta(microseconds=int(us))
@@ -56,14 +36,12 @@ def _webkit_from_datetime(dt: datetime.datetime) -> int:
 
 
 def query_chrome(
-    db_path: pathlib.Path = None,
-    text: Optional[str] = None,
-    start: Optional[datetime.datetime] = None,
-    end: Optional[datetime.datetime] = None,
+    db_path: pathlib.Path,
+    text: str | None = None,
+    start: datetime.datetime | None = None,
+    end: datetime.datetime | None = None,
     limit: int = 50,
-) -> List[Dict[str, Any]]:
-    results: List[Dict[str, Any]] = []
-
+) -> list[NormalizedRow]:
     text_like = f"%{text}%" if text else None
     start_wk = _webkit_from_datetime(start) if start else None
     end_wk = _webkit_from_datetime(end) if end else None
@@ -80,10 +58,6 @@ def query_chrome(
     LIMIT :limit
     """
 
-    copied = _copy_locked_db(db_path)
-    uri = f"file:{copied}?immutable=1&mode=ro"
-    con = sqlite3.connect(uri, uri=True)
-    con.row_factory = sqlite3.Row
     params = {"limit": limit}
     if text_like:
         params["text"] = text_like
@@ -91,17 +65,20 @@ def query_chrome(
         params["start"] = start_wk
     if end_wk:
         params["end"] = end_wk
-    cur = con.execute(SQL, params)
-    for row in cur.fetchall():
-        results.append(
-            {
-                "url": row["url"],
-                "title": row["title"],
-                "browser": "chrome",
-                "visited_at": _iso_from_webkit_microseconds(row["visited_at_wk"]),
-                "visit_count": row["visit_count"],
-                "profile_path": str(db_path.parent),
-            }
+
+    with history_query(SQL, params, db_path) as rows:
+        return list(
+            map(
+                lambda r: NormalizedRow(
+                    url=r["url"],
+                    title=r["title"],
+                    browser="firefox",
+                    visited_at=_iso_from_webkit_microseconds(r["visited_at_wk"])
+                    if r["visited_at_wk"]
+                    else None,
+                    visit_count=r["visit_count"],
+                    profile_path=str(db_path.parent),
+                ),
+                rows,
+            )
         )
-    con.close()
-    return results[:limit]
