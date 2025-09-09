@@ -62,10 +62,11 @@ def build_unified_browser_history_db(dest_db: Path, sources: Iterable[tuple[str,
           url          TEXT NOT NULL,
           title        TEXT,
           referrer_url TEXT,
-          visited_dt  DATETIME NOT NULL        -- UTC datetime
+          visited_dt  DATETIME NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_bh_time ON browser_history(visited_dt);
-        CREATE INDEX IF NOT EXISTS idx_bh_url  ON browser_history(url);
+        CREATE INDEX IF NOT EXISTS idx_bh_time  ON browser_history(visited_dt);
+        CREATE INDEX IF NOT EXISTS idx_bh_url   ON browser_history(url);
+        CREATE INDEX IF NOT EXISTS idx_bh_title ON browser_history(title);
         """
     )
 
@@ -86,10 +87,13 @@ def build_unified_browser_history_db(dest_db: Path, sources: Iterable[tuple[str,
                     SELECT
                       'chrome' AS browser,
                       ?         AS profile,
-                      u.url,
+                      CASE
+                        WHEN instr(u.url, '?') > 0 THEN substr(u.url, 1, instr(u.url, '?') - 1)
+                        ELSE u.url
+                      END,
                       u.title,
                       r.url AS referrer_url,
-                      datetime((v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt
+                      strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt
                     FROM {alias}.urls u
                     JOIN {alias}.visits v       ON v.url = u.id
                     LEFT JOIN {alias}.visits pv ON pv.id = v.from_visit
@@ -125,12 +129,15 @@ def build_unified_browser_history_db(dest_db: Path, sources: Iterable[tuple[str,
                     SELECT
                       'safari' AS browser,
                       ?         AS profile,
-                      i.url,
-                      i.title,
+                      CASE
+                        WHEN instr(i.url, '?') > 0 THEN substr(i.url, 1, instr(i.url, '?') - 1)
+                        ELSE i.url
+                      END,
+                      v.title,
                       NULL AS referrer_url,
-                      datetime((v.visit_time + strftime('%s','2001-01-01')),'unixepoch') AS visited_dt
-                    FROM {alias}.history_visits v
-                    JOIN {alias}.history_items  i ON i.id = v.history_item;
+                      strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch') AS visited_dt
+                    FROM {alias}.history_items i
+                    LEFT JOIN {alias}.history_visits v ON v.history_item = i.id;
                     """
                 ).replace("{alias}", alias)
                 cur.execute(sql, (profile_label,))
@@ -154,8 +161,8 @@ def get_or_create_unified_db(sources: Iterable[tuple[str, Path]]) -> Path:
         return _UNIFIED_DB_PATH
 
     # For debugging:
-    # tmpdir = Path('.')
-    tmpdir = Path(tempfile.mkdtemp(prefix="llm_bh_unified_"))
+    tmpdir = Path('.')
+    # tmpdir = Path(tempfile.mkdtemp(prefix="llm_bh_unified_"))
     dest = tmpdir / "unified_history.sqlite"
     build_unified_browser_history_db(dest, sources)
     _UNIFIED_DB_PATH = dest
