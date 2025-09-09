@@ -4,6 +4,26 @@ A tool for the [llm](https://llm.datasette.io/) command line that allows searchi
 
 # Usage
 
+Install for use with llm:
+
+```sh
+# install the plugin:
+llm install llm-tools-browser-history
+
+# see available plugins:
+llm plugins
+
+...
+  {
+    "name": "llm-tools-browser-history",
+    "hooks": [
+      "register_tools"
+    ],
+    "version": "0.1.0"
+  },
+...
+```
+
 Examples:
 
 ```sh
