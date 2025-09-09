@@ -5,10 +5,11 @@ import pathlib
 import llm
 from typing import Iterable
 
-from .firefox import query_firefox, find_firefox_places_sqlite
-from .chrome import query_chrome, find_chrome_history_paths
-from .safari import query_safari, find_safari_history_paths
+from .firefox import find_firefox_places_sqlite
+from .chrome import find_chrome_history_paths
+from .safari import find_safari_history_paths
 from .types import BrowserType
+from .sqlite import get_or_create_unified_db, run_unified_query
 
 
 class BrowserHistory(llm.Toolbox):
@@ -40,54 +41,29 @@ class BrowserHistory(llm.Toolbox):
             dt = dt.replace(tzinfo=datetime.timezone.utc)
         return dt.astimezone(datetime.timezone.utc)
 
-    def search(
-        self,
-        text: str | None = None,
-        start: str | None = None,
-        end: str | None = None,
-        limit: int = 50,
-    ) -> str:
+    def search(self, sql: str, params: dict[str, object] | None = None) -> str:
         """
-        Search locally installed browser histories.
-        - text: Substring to search for in URL or title (case-insensitive).
-        - start: ISO 8601 datetime string for the start of the date range (inclusive).
-        - end: ISO 8601 datetime string for the end of the date range (inclusive).
-        - limit: Maximum number of results to return per browser source (default 50).
+        Execute a SQL query against a normalized, unified browser history database.
+
+        The sql query can referenc the following schema:
+
+            CREATE TABLE IF NOT EXISTS browser_history (
+            browser     TEXT NOT NULL,          -- 'chrome' | 'firefox' | 'safari' | …
+            profile     TEXT,                   -- optional label you add
+            url         TEXT NOT NULL,
+            title       TEXT,
+            referrer_url TEXT,                  -- NULL on Safari
+            visited_dt  DATETIME NOT NULL        -- UTC datetime
+            );
+            CREATE INDEX IF NOT EXISTS idx_bh_time ON browser_history(visited_ms);
+            CREATE INDEX IF NOT EXISTS idx_bh_url  ON browser_history(url);
+
+        This method will no more than 100 rows of data.
+
+        Provide any SQLite SQL in `sql` (e.g. `SELECT * FROM browser_history WHERE url LIKE :u ORDER BY visited_ms DESC`).
+        Named parameters can be supplied via `params`.
         """
-        start_dt = self._parse_iso(start) if start else None
-        end_dt = self._parse_iso(end) if end else None
-
-        rows = []
-        for browser, browser_path in self.sources:
-            if browser == "chrome":
-                rows.extend(
-                    query_chrome(
-                        browser_path,
-                        text=text,
-                        start=start_dt,
-                        end=end_dt,
-                        limit=limit,
-                    )
-                )
-            elif browser == "firefox":
-                rows.extend(
-                    query_firefox(
-                        browser_path,
-                        text,
-                        start_dt,
-                        end_dt,
-                        limit,
-                    )
-                )
-            elif browser == "safari":
-                rows.extend(
-                    query_safari(
-                        browser_path,
-                        text,
-                        start_dt,
-                        end_dt,
-                        limit,
-                    )
-                )
-
+        # Ensure the unified DB exists only once per process
+        unified_db = get_or_create_unified_db(self.sources)
+        rows = run_unified_query(unified_db, sql, params or {})
         return json.dumps(rows, indent=2)
