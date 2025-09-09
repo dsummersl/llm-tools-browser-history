@@ -4,24 +4,16 @@ A tool for the [llm](https://llm.datasette.io/) command line that allows searchi
 
 # Usage
 
-The BrowserHistory toolbox now accepts SQL queries against a normalized, unified database.
-
-- Table: `browser_history(browser, profile, url, title, referrer_url, visited_ms)`
-- Results are limited to 100 rows and only return: `url` (with query removed), `title`, `date` (UTC date).
-
 Examples:
 
 ```sh
 # Search for pages mentioning yosemite in title or URL
-llm -T llm_time -T BrowserHistory --tool 'search' --tool-args '{
-  "sql": "SELECT * FROM browser_history WHERE url LIKE :q OR title LIKE :q ORDER BY visited_ms DESC",
-  "params": {"q": "%yosemite%"}
-}' "what pages about yosemite did I look up recently?"
+llm -T llm_time -T BrowserHistory "what pages about yosemite did I look up recently?"
 
 # Limit to Firefox and Safari sources
-llm -T llm_time -T 'BrowserHistory(["firefox", "safari"])' --tool 'search' --tool-args '{
-  "sql": "SELECT * FROM browser_history WHERE browser IN (\"firefox\", \"safari\") AND visited_ms >= strftime(\"%s\", \"now\")*1000 - 7*24*60*60*1000 ORDER BY visited_ms DESC"
-}' "show the last week of browsing by url and title"
+llm -T llm_time -T 'BrowserHistory(["firefox","safari"])' "what pages about yosemite did I look up recently?"
+
+llm -T BrowserHistory "show a table of how much I used each browser over the past year by month"
 ```
 
 
