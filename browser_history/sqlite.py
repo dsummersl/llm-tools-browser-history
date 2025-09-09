@@ -9,7 +9,7 @@ import hashlib
 from typing import Iterable
 
 
-def _copy_locked_db(path: pathlib.Path) -> pathlib.Path:
+def copy_locked_db(path: pathlib.Path) -> pathlib.Path:
     tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="llm_bh"))
     dst = tmpdir / path.name
     _ = shutil.copy2(path, dst)
@@ -20,7 +20,7 @@ def _copy_locked_db(path: pathlib.Path) -> pathlib.Path:
 def history_query(
     sql_query: str, params: dict, db_path: pathlib.Path
 ) -> Generator[list[sqlite3.Row], None, None]:
-    copied = _copy_locked_db(db_path)
+    copied = copy_locked_db(db_path)
     uri = f"file:{copied}?immutable=1&mode=ro"
     con = sqlite3.connect(uri, uri=True)
     con.row_factory = sqlite3.Row
@@ -34,13 +34,13 @@ def history_query(
 _UNIFIED_DB_PATH: Path | None = None
 
 
-def _sha_label(browser: str, path: Path) -> str:
+def sha_label(browser: str, path: Path) -> str:
     h = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:10]
     return f"{browser}:{h}"
 
 
-def _attach_copy(cur: sqlite3.Cursor, alias: str, path: Path) -> Path:
-    copied = _copy_locked_db(path)
+def attach_copy(cur: sqlite3.Cursor, alias: str, path: Path) -> Path:
+    copied = copy_locked_db(path)
     uri = f"file:{copied}?immutable=1&mode=ro"
     cur.execute("ATTACH DATABASE ? AS " + alias, (uri,))
     return copied
@@ -76,9 +76,9 @@ def build_unified_browser_history_db(dest_db: Path, sources: Iterable[tuple[str,
         for browser, path in sources:
             alias_num += 1
             alias = f"src{alias_num}"
-            copied = _attach_copy(cur, alias, path)
+            copied = attach_copy(cur, alias, path)
             tmp_copies.append(copied)
-            profile_label = _sha_label(browser, path)
+            profile_label = sha_label(browser, path)
 
             if browser == "chrome":
                 sql = (

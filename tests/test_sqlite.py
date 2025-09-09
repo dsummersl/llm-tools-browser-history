@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from browser_history.sqlite import attach_copy
+from browser_history.sqlite import copy_locked_db
+from browser_history.sqlite import sha_label
+from browser_history.sqlite import build_unified_browser_history_db
+from browser_history.sqlite import run_unified_query
+
 import sqlite3
-from datetime import datetime, timezone
 from pathlib import Path
 
 fixture_path = Path(__file__).parent / "fixtures"
@@ -10,21 +15,11 @@ firefox_db = fixture_path / "firefox-places.db"
 safari_db = fixture_path / "safari-places.db"
 
 
-from browser_history.sqlite import (
-    _attach_copy,
-    _copy_locked_db,
-    _sha_label,
-    build_unified_browser_history_db,
-    history_query,
-    run_unified_query,
-)
-
-
 def test_sha_label_is_deterministic():
     p = fixture_path / "db.sqlite"
     p.write_text("x")
-    a = _sha_label("chrome", p)
-    b = _sha_label("chrome", p)
+    a = sha_label("chrome", p)
+    b = sha_label("chrome", p)
     assert a == b
     assert a.startswith("chrome:")
     assert len(a.split(":")[1]) == 10
@@ -33,7 +28,7 @@ def test_sha_label_is_deterministic():
 def test_copy_locked_db_creates_distinct_copy():
     src = fixture_path / "src.sqlite"
     src.write_bytes(b"hello")
-    copied = _copy_locked_db(src)
+    copied = copy_locked_db(src)
     assert copied.exists()
     assert copied.read_bytes() == b"hello"
     # Should be placed in a temp directory and not the same path
@@ -44,7 +39,7 @@ def test_copy_locked_db_creates_distinct_copy():
 def test_attach_copy_allows_querying_attached_db():
     main = sqlite3.connect(":memory:")
     cur = main.cursor()
-    copied = _attach_copy(cur, "src", chrome_db)
+    copied = attach_copy(cur, "src", chrome_db)
 
     # Validate attachment
     rows = cur.execute("SELECT url FROM src.visits").fetchall()
@@ -74,18 +69,18 @@ def test_build_unified_browser_history_db():
     ).fetchall()
     con.close()
 
-    assert len(rows) == 4
+    assert len(rows) == 6
 
-    ch_hour = '2025-08-18 17:00:00'
-    ff_hour = '2024-09-08 00:00:00'
-    sf_hour = ''
+    ch_hour = "2025-08-18 17:00:00"
+    ff_hour = "2024-09-08 00:00:00"
+    sf_hour = "2025-01-31 07:00:00"
 
     # Map by browser for easier asserts
     out = {r[0]: r for r in rows}
 
-    chrome_profile = _sha_label("chrome", chrome_db)
-    firefox_profile = _sha_label("firefox", firefox_db)
-    safari_profile = _sha_label("safari", safari_db)
+    chrome_profile = sha_label("chrome", chrome_db)
+    firefox_profile = sha_label("firefox", firefox_db)
+    safari_profile = sha_label("safari", safari_db)
 
     assert out["chrome"] == (
         "chrome",
@@ -98,20 +93,19 @@ def test_build_unified_browser_history_db():
     assert out["firefox"] == (
         "firefox",
         firefox_profile,
-        'https://news.ycombinator.com/',
+        "https://news.ycombinator.com/",
         "Hacker News",
         None,
         ff_hour,
     )
-    # TODO currently empty, no data:
-    # assert out["safari"] == (
-    #     "safari",
-    #     safari_profile,
-    #     "https://safari.com/z",
-    #     "S",
-    #     None,
-    #     sf_hour,
-    # )
+    assert out["safari"] == (
+        "safari",
+        safari_profile,
+        "https://www.apple.com/",
+        "Apple",
+        None,
+        sf_hour,
+    )
 
 
 def test_run_unified_query_counts_rows():
