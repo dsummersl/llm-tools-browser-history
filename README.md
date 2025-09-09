@@ -1,6 +1,8 @@
 # LLM Tools Browser History
 
-A tool for the [llm](https://llm.datasette.io/) command line that allows searching local browser history.
+A tool for the [llm](https://llm.datasette.io/) command line that allows searching local browser history files.
+
+The tool currently supports Chrome, Firefox, and Safari browser histories.
 
 # Usage
 
