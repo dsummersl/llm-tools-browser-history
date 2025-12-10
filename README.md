@@ -1,10 +1,36 @@
-# LLM Tools Browser History
+# Local Browser History MCP
 
-A tool for the [llm](https://llm.datasette.io/) command line that allows searching local browser history files.
+An MCP (Model Context Protocol) server for searching local browser history files. Works with Claude Desktop, Claude Code, and other MCP-compatible clients. Also available as an [llm](https://llm.datasette.io/) command-line plugin.
 
 The tool currently supports Chrome, Firefox, and Safari browser histories.
 
-# Usage
+# Installation
+
+## For MCP Server (Claude Desktop, Claude Code, etc.)
+
+Install with MCP support:
+
+```sh
+pip install llm-tools-browser-history[mcp]
+```
+
+Then configure your MCP client. For detailed setup instructions, see [MCP Setup Guide](docs/MCP_SETUP.md).
+
+Quick start for Claude Desktop - add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "browser-history": {
+      "command": "browser-history-mcp"
+    }
+  }
+}
+```
+
+Once configured, you can use the `search_browser_history` tool in conversations with Claude.
+
+## For llm command-line tool
 
 Install for use with llm:
 
@@ -62,8 +88,13 @@ pip install -e .
 llm -T llm_time -T BrowserHistory --td "what pages about yosemite did I look up recently?"
 ```
 
-# ADRs
+# Documentation
+
+* [MCP Setup Guide](docs/MCP_SETUP.md) - Setting up the MCP server for Claude Desktop, Claude Code, etc.
+
+## ADRs
 
 * [1. Python project](docs/adr/0001-python-project.md)
 * [2. Expose browser history as an LLM toolbox tool](docs/adr/0002-browser-tool.md)
 * [3. Normalized SQL interface](docs/adr/0003-normalized-sql-interface.md)
+* [4. MCP Standalone Service](docs/adr/0004-mcp-standalone-service.md)
