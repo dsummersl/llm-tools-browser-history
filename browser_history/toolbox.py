@@ -1,26 +1,23 @@
-from __future__ import annotations
 import json
-import datetime
 import pathlib
 import llm
 from collections.abc import Iterable
-from typing import get_args
+from typing import Any, Sequence, get_args
 
 
 from .firefox import find_firefox_places_sqlite
 from .chrome import find_chrome_history_paths
 from .safari import find_safari_history_paths
-from .types import BrowserType
-from .sqlite import get_or_create_unified_db, run_unified_query
+from .browser_types import BrowserType
+from .sqlite import get_or_create_unified_db, run_unified_query, cleanup_unified_db
 
 
-class BrowserHistory(llm.Toolbox):
-    """
-    Toolbox allowing search through browser history.
-    """
+class BrowserHistory(llm.Toolbox):  # type: ignore
+    """Toolbox allowing search through browser history."""
 
-    def __init__(self, sources: Iterable[str | None] = None):
+    def __init__(self, sources: Iterable[str] | None = None, max_rows: int = 100):
         self.sources: list[tuple[str, pathlib.Path]] = []
+        self.max_rows = max_rows
 
         if not sources:
             sources = get_args(BrowserType)
@@ -35,13 +32,9 @@ class BrowserHistory(llm.Toolbox):
             for p in find_safari_history_paths():
                 self.sources.append(("safari", p))
 
-    def _parse_iso(self, s: str | None) -> datetime.datetime | None:
-        if not s:
-            return None
-        dt = datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=datetime.timezone.utc)
-        return dt.astimezone(datetime.timezone.utc)
+    def _do_search(self, sql: str) -> list[Sequence[Any]]:
+        unified_db = get_or_create_unified_db(self.sources)
+        return run_unified_query(unified_db, sql, {}, self.max_rows)
 
     def search(self, sql: str) -> str:
         """
@@ -51,7 +44,7 @@ class BrowserHistory(llm.Toolbox):
 
             CREATE TABLE IF NOT EXISTS browser_history (
             browser     TEXT NOT NULL,          -- 'chrome' | 'firefox' | 'safari' | …
-            profile     TEXT,
+            profile     TEXT,                   -- browser profile name, e.g. 'Default', 'Profile 1', 'default-release'
             url         TEXT NOT NULL,          -- The URL visited (without query parameters)
             title       TEXT,                   -- The title of the page visited.
             referrer_url TEXT,                  -- NULL on Safari, otherwise the referrer
@@ -65,7 +58,8 @@ class BrowserHistory(llm.Toolbox):
         `SELECT * FROM browser_history WHERE url LIKE :u ORDER BY visited_ms DESC`.
         `SELECT * FROM browser_history WHERE lower(title) LIKE lower(title) LIKE lower('%lemming%') ORDER BY visited_ms DESC`.
         """
-        # Ensure the unified DB exists only once per process
-        unified_db = get_or_create_unified_db(self.sources)
-        rows = run_unified_query(unified_db, sql, {})
-        return json.dumps(rows, indent=2)
+        return json.dumps(self._do_search(sql), indent=2)
+
+    def __del__(self):  # type: ignore
+        """Cleanup the unified database when the toolbox is destroyed."""
+        cleanup_unified_db()

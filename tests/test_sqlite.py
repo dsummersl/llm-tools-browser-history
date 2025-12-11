@@ -50,9 +50,9 @@ def test_attach_copy_allows_querying_attached_db():
 
 
 def test_build_unified_browser_history_db():
-    dest = fixture_path / "unified.sqlite"
-    build_unified_browser_history_db(
-        dest,
+    # Test with in-memory database (default)
+    conn = build_unified_browser_history_db(
+        None,
         [
             ("chrome", chrome_db),
             ("firefox", firefox_db),
@@ -60,14 +60,11 @@ def test_build_unified_browser_history_db():
         ],
     )
 
-    assert dest.exists()
-
-    con = sqlite3.connect(dest)
-    cur = con.cursor()
+    cur = conn.cursor()
     rows = cur.execute(
         "SELECT browser, profile, url, title, referrer_url, visited_dt FROM browser_history ORDER BY browser"
     ).fetchall()
-    con.close()
+    conn.close()
 
     assert len(rows) == 6
 
@@ -109,8 +106,23 @@ def test_build_unified_browser_history_db():
 
 
 def test_run_unified_query_counts_rows():
-    dest = fixture_path / "unified.sqlite"
-    build_unified_browser_history_db(dest, [("chrome", chrome_db)])
+    conn = build_unified_browser_history_db(None, [("chrome", chrome_db)])
 
-    rows = run_unified_query(dest, "SELECT COUNT(*) FROM browser_history")
+    rows = run_unified_query(conn, "SELECT COUNT(*) FROM browser_history")
     assert rows[0][0] == 2
+    conn.close()
+
+
+def test_build_unified_browser_history_db_with_file():
+    # Test with file-based database
+    dest = fixture_path / "unified_file.sqlite"
+    conn = build_unified_browser_history_db(dest, [("chrome", chrome_db)])
+
+    assert dest.exists()
+
+    rows = run_unified_query(conn, "SELECT COUNT(*) FROM browser_history")
+    assert rows[0][0] == 2
+    conn.close()
+
+    # Clean up
+    dest.unlink()
