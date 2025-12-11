@@ -1,20 +1,18 @@
 # Local Browser History MCP
 
-An MCP (Model Context Protocol) server for searching local browser history files. Works with Claude Desktop, Claude Code, and other MCP-compatible clients. Also available as an [llm](https://llm.datasette.io/) command-line plugin.
+An MCP server that allows searching local browser history files through a unified interface. Works with MCP-compatible clients and as a tool for the [llm](https://llm.datasette.io/) CLI tool.
 
 The tool currently supports Chrome, Firefox, and Safari browser histories.
 
 # Installation
 
-## For MCP Server (Claude Desktop, Claude Code, etc.)
+## MCP Server (Claude Desktop, Claude Code, etc.)
 
 Install with MCP support:
 
 ```sh
-pip install llm-tools-browser-history[mcp]
+pip install llm-tools-browser-history
 ```
-
-Then configure your MCP client. For detailed setup instructions, see [MCP Setup Guide](docs/MCP_SETUP.md).
 
 Quick start for Claude Desktop - add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -28,9 +26,17 @@ Quick start for Claude Desktop - add to `~/Library/Application Support/Claude/cl
 }
 ```
 
-Once configured, you can use the `search_browser_history` tool in conversations with Claude.
+Once configured, you can use the `browser_history` tool in conversations with Claude.
 
-## For llm command-line tool
+
+Note that the CLI supports additional options as needed:
+
+
+```sh
+browser-history-mcp --help
+```
+
+## llm CLI tool
 
 Install for use with llm:
 
