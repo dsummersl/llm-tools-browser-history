@@ -6,7 +6,7 @@ import pathlib
 import tempfile
 import shutil
 import hashlib
-from typing import Iterable
+from typing import Any, Iterable
 
 
 def copy_locked_db(path: pathlib.Path) -> pathlib.Path:
@@ -161,7 +161,7 @@ def get_or_create_unified_db(sources: Iterable[tuple[str, Path]]) -> Path:
         return _UNIFIED_DB_PATH
 
     # For debugging:
-    tmpdir = Path('.')
+    tmpdir = Path(".")
     # tmpdir = Path(tempfile.mkdtemp(prefix="llm_bh_unified_"))
     dest = tmpdir / "unified_history.sqlite"
     build_unified_browser_history_db(dest, sources)
@@ -170,13 +170,13 @@ def get_or_create_unified_db(sources: Iterable[tuple[str, Path]]) -> Path:
 
 
 def run_unified_query(
-    db_path: Path, sql: str, params: dict[str, object] | None = None
-) -> list[sqlite3.Row]:
+    db_path: Path, sql: str, params: dict[str, object] | None = None, max_rows: int = 100
+) -> list[Any]:
     uri = f"file:{db_path}?immutable=1&mode=ro"
     conn = sqlite3.connect(uri, uri=True)
 
     try:
         cur = conn.execute(sql, params or {})
-        return cur.fetchmany(100)
+        return cur.fetchmany(max_rows)
     finally:
         conn.close()
