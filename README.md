@@ -20,7 +20,10 @@ Quick start for Claude Desktop - add to `~/Library/Application Support/Claude/cl
 {
   "mcpServers": {
     "browser-history": {
-      "command": "browser-history-mcp"
+      "command": "uvx",
+      "args": [
+        "llm-tools-browser-history",
+      ]
     }
   }
 }
