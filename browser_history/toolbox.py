@@ -1,6 +1,5 @@
 import json
 import pathlib
-from sqlite3 import Row
 import llm
 from collections.abc import Iterable
 from typing import Any, Sequence, get_args
@@ -13,8 +12,8 @@ from .browser_types import BrowserType
 from .sqlite import get_or_create_unified_db, run_unified_query, cleanup_unified_db
 
 
-class BrowserHistory(llm.Toolbox):
-    """ Toolbox allowing search through browser history. """
+class BrowserHistory(llm.Toolbox):  # type: ignore
+    """Toolbox allowing search through browser history."""
 
     def __init__(self, sources: Iterable[str] | None = None, max_rows: int = 100):
         self.sources: list[tuple[str, pathlib.Path]] = []
@@ -61,6 +60,6 @@ class BrowserHistory(llm.Toolbox):
         """
         return json.dumps(self._do_search(sql), indent=2)
 
-    def __del__(self):
+    def __del__(self):  # type: ignore
         """Cleanup the unified database when the toolbox is destroyed."""
         cleanup_unified_db()

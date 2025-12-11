@@ -44,7 +44,7 @@ def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
     show_default=True,
     help="Maximum rows to return from a search",
 )
-def cli(transport, sources, max_rows):
+def cli(transport, sources, max_rows) -> None: # type: ignore
     logging.basicConfig(level=logging.INFO)
     atexit.register(cleanup_unified_db)
     make_mcp(sources, max_rows).run(transport=transport)

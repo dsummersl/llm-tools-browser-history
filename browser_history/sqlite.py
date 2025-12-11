@@ -18,7 +18,7 @@ def copy_locked_db(path: pathlib.Path) -> pathlib.Path:
 
 @contextmanager
 def history_query(
-    sql_query: str, params: dict, db_path: pathlib.Path
+    sql_query: str, params: dict[str, str], db_path: pathlib.Path
 ) -> Generator[list[sqlite3.Row], None, None]:
     copied = copy_locked_db(db_path)
     uri = f"file:{copied}?immutable=1&mode=ro"
