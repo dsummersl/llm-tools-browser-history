@@ -31,7 +31,7 @@ def history_query(
         con.close()
 
 
-_UNIFIED_DB_PATH: Path | None = None
+_UNIFIED_DB_CONN: sqlite3.Connection | None = None
 
 
 def sha_label(browser: str, path: Path) -> str:
@@ -46,11 +46,15 @@ def attach_copy(cur: sqlite3.Cursor, alias: str, path: Path) -> Path:
     return copied
 
 
-def build_unified_browser_history_db(dest_db: Path, sources: Iterable[tuple[str, Path]]) -> None:
-    if dest_db.exists():
-        dest_db.unlink()
+def build_unified_browser_history_db(dest_db: Path | None, sources: Iterable[tuple[str, Path]]) -> sqlite3.Connection:
+    if dest_db is not None:
+        if dest_db.exists():
+            dest_db.unlink()
+        conn = sqlite3.connect(f"file:{dest_db}?mode=rwc", uri=True)
+    else:
+        # Use in-memory database
+        conn = sqlite3.connect(":memory:")
 
-    conn = sqlite3.connect(f"file:{dest_db}?mode=rwc", uri=True)
     cur = conn.cursor()
 
     cur.executescript(
@@ -146,7 +150,6 @@ def build_unified_browser_history_db(dest_db: Path, sources: Iterable[tuple[str,
             conn.commit()
             cur.execute(f"DETACH DATABASE {alias}")
     finally:
-        conn.close()
         # Best-effort cleanup of temp copies
         for p in tmp_copies:
             try:
@@ -154,29 +157,37 @@ def build_unified_browser_history_db(dest_db: Path, sources: Iterable[tuple[str,
             except Exception:
                 pass
 
+    return conn
 
-def get_or_create_unified_db(sources: Iterable[tuple[str, Path]]) -> Path:
-    global _UNIFIED_DB_PATH
-    if _UNIFIED_DB_PATH is not None and _UNIFIED_DB_PATH.exists():
-        return _UNIFIED_DB_PATH
 
-    # For debugging:
-    tmpdir = Path(".")
-    # tmpdir = Path(tempfile.mkdtemp(prefix="llm_bh_unified_"))
-    dest = tmpdir / "unified_history.sqlite"
-    build_unified_browser_history_db(dest, sources)
-    _UNIFIED_DB_PATH = dest
-    return dest
+def get_or_create_unified_db(sources: Iterable[tuple[str, Path]]) -> sqlite3.Connection:
+    global _UNIFIED_DB_CONN
+    if _UNIFIED_DB_CONN is not None:
+        return _UNIFIED_DB_CONN
+
+    # Use in-memory database by default
+    conn = build_unified_browser_history_db(None, sources)
+    _UNIFIED_DB_CONN = conn
+    return conn
+
+
+def cleanup_unified_db() -> None:
+    """Close the unified database connection."""
+    global _UNIFIED_DB_CONN
+    if _UNIFIED_DB_CONN is None:
+        return
+
+    try:
+        _UNIFIED_DB_CONN.close()
+    except Exception:
+        # Best-effort cleanup, ignore errors
+        pass
+    finally:
+        _UNIFIED_DB_CONN = None
 
 
 def run_unified_query(
-    db_path: Path, sql: str, params: dict[str, object] | None = None, max_rows: int = 100
+    conn: sqlite3.Connection, sql: str, params: dict[str, object] | None = None, max_rows: int = 100
 ) -> list[Any]:
-    uri = f"file:{db_path}?immutable=1&mode=ro"
-    conn = sqlite3.connect(uri, uri=True)
-
-    try:
-        cur = conn.execute(sql, params or {})
-        return cur.fetchmany(max_rows)
-    finally:
-        conn.close()
+    cur = conn.execute(sql, params or {})
+    return cur.fetchmany(max_rows)

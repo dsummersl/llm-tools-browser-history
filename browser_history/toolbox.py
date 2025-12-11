@@ -10,7 +10,7 @@ from .firefox import find_firefox_places_sqlite
 from .chrome import find_chrome_history_paths
 from .safari import find_safari_history_paths
 from .browser_types import BrowserType
-from .sqlite import get_or_create_unified_db, run_unified_query
+from .sqlite import get_or_create_unified_db, run_unified_query, cleanup_unified_db
 
 
 class BrowserHistory(llm.Toolbox):
@@ -60,3 +60,7 @@ class BrowserHistory(llm.Toolbox):
         `SELECT * FROM browser_history WHERE lower(title) LIKE lower(title) LIKE lower('%lemming%') ORDER BY visited_ms DESC`.
         """
         return json.dumps(self._do_search(sql), indent=2)
+
+    def __del__(self):
+        """Cleanup the unified database when the toolbox is destroyed."""
+        cleanup_unified_db()
