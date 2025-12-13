@@ -22,15 +22,20 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
         if not sources:
             sources = get_args(BrowserType)
 
-        if "firefox" in sources:
-            for p in find_firefox_places_sqlite():
-                self.sources.append(("firefox", p))
-        if "chrome" in sources:
-            for p in find_chrome_history_paths():
-                self.sources.append(("chrome", p))
-        if "safari" in sources:
-            for p in find_safari_history_paths():
-                self.sources.append(("safari", p))
+        self._initialize_sources(sources)
+
+    def _initialize_sources(self, sources: Iterable[str]) -> None:
+        """Initialize browser history sources."""
+        browser_finders = {
+            "firefox": find_firefox_places_sqlite,
+            "chrome": find_chrome_history_paths,
+            "safari": find_safari_history_paths,
+        }
+
+        for browser_name, finder_func in browser_finders.items():
+            if browser_name in sources:
+                for p in finder_func():
+                    self.sources.append((browser_name, p))
 
     def _do_search(self, sql: str) -> list[Sequence[Any]]:
         unified_db = get_or_create_unified_db(self.sources)

@@ -46,17 +46,86 @@ def attach_copy(cur: sqlite3.Cursor, alias: str, path: Path) -> Path:
     return copied
 
 
-def build_unified_browser_history_db(dest_db: Path | None, sources: Iterable[tuple[str, Path]]) -> sqlite3.Connection:
+def insert_chrome_history(cur: sqlite3.Cursor, alias: str, profile_label: str) -> None:
+    """Insert Chrome browser history into the unified database."""
+    sql = (
+        """
+        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
+        SELECT
+          'chrome' AS browser,
+          ?         AS profile,
+          CASE
+            WHEN instr(u.url, '?') > 0 THEN substr(u.url, 1, instr(u.url, '?') - 1)
+            ELSE u.url
+          END,
+          u.title,
+          r.url AS referrer_url,
+          strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt
+        FROM {alias}.urls u
+        JOIN {alias}.visits v       ON v.url = u.id
+        LEFT JOIN {alias}.visits pv ON pv.id = v.from_visit
+        LEFT JOIN {alias}.urls  r   ON r.id = pv.url;
+        """
+    ).replace("{alias}", alias)
+    cur.execute(sql, (profile_label,))
+
+
+def insert_firefox_history(cur: sqlite3.Cursor, alias: str, profile_label: str) -> None:
+    """Insert Firefox browser history into the unified database."""
+    sql = (
+        """
+        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
+        SELECT
+          'firefox' AS browser,
+          ?          AS profile,
+          CASE
+            WHEN instr(p.url, '?') > 0 THEN substr(p.url, 1, instr(p.url, '?') - 1)
+            ELSE p.url
+          END,
+          p.title,
+          pr.url AS referrer_url,
+          strftime('%Y-%m-%d %H:00:00', h.visit_date/1000000, 'unixepoch') AS visited_dt
+        FROM {alias}.moz_historyvisits h
+        JOIN {alias}.moz_places p         ON p.id = h.place_id
+        LEFT JOIN {alias}.moz_historyvisits ph ON ph.id = h.from_visit
+        LEFT JOIN {alias}.moz_places pr    ON pr.id = ph.place_id;
+        """
+    ).replace("{alias}", alias)
+    cur.execute(sql, (profile_label,))
+
+
+def insert_safari_history(cur: sqlite3.Cursor, alias: str, profile_label: str) -> None:
+    """Insert Safari browser history into the unified database."""
+    sql = (
+        """
+        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
+        SELECT
+          'safari' AS browser,
+          ?         AS profile,
+          CASE
+            WHEN instr(i.url, '?') > 0 THEN substr(i.url, 1, instr(i.url, '?') - 1)
+            ELSE i.url
+          END,
+          v.title,
+          NULL AS referrer_url,
+          strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch') AS visited_dt
+        FROM {alias}.history_items i
+        LEFT JOIN {alias}.history_visits v ON v.history_item = i.id;
+        """
+    ).replace("{alias}", alias)
+    cur.execute(sql, (profile_label,))
+
+
+def _create_unified_db_connection(dest_db: Path | None) -> sqlite3.Connection:
+    """Create and initialize the unified database connection."""
     if dest_db is not None:
         if dest_db.exists():
             dest_db.unlink()
         conn = sqlite3.connect(f"file:{dest_db}?mode=rwc", uri=True)
     else:
-        # Use in-memory database
         conn = sqlite3.connect(":memory:")
 
     cur = conn.cursor()
-
     cur.executescript(
         """
         PRAGMA journal_mode=WAL;
@@ -73,9 +142,21 @@ def build_unified_browser_history_db(dest_db: Path | None, sources: Iterable[tup
         CREATE INDEX IF NOT EXISTS idx_bh_title ON browser_history(title);
         """
     )
+    return conn
 
+
+def _process_browser_sources(conn: sqlite3.Connection, sources: Iterable[tuple[str, Path]]) -> None:
+    """Process and import browser history from all sources."""
+    cur = conn.cursor()
     tmp_copies: list[Path] = []
     alias_num = 0
+
+    browser_inserters = {
+        "chrome": insert_chrome_history,
+        "firefox": insert_firefox_history,
+        "safari": insert_safari_history,
+    }
+
     try:
         for browser, path in sources:
             alias_num += 1
@@ -84,79 +165,23 @@ def build_unified_browser_history_db(dest_db: Path | None, sources: Iterable[tup
             tmp_copies.append(copied)
             profile_label = sha_label(browser, path)
 
-            if browser == "chrome":
-                sql = (
-                    """
-                    INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
-                    SELECT
-                      'chrome' AS browser,
-                      ?         AS profile,
-                      CASE
-                        WHEN instr(u.url, '?') > 0 THEN substr(u.url, 1, instr(u.url, '?') - 1)
-                        ELSE u.url
-                      END,
-                      u.title,
-                      r.url AS referrer_url,
-                      strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt
-                    FROM {alias}.urls u
-                    JOIN {alias}.visits v       ON v.url = u.id
-                    LEFT JOIN {alias}.visits pv ON pv.id = v.from_visit
-                    LEFT JOIN {alias}.urls  r   ON r.id = pv.url;
-                    """
-                ).replace("{alias}", alias)
-                cur.execute(sql, (profile_label,))
-            elif browser == "firefox":
-                sql = (
-                    """
-                    INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
-                    SELECT
-                      'firefox' AS browser,
-                      ?          AS profile,
-                      CASE
-                        WHEN instr(p.url, '?') > 0 THEN substr(p.url, 1, instr(p.url, '?') - 1)
-                        ELSE p.url
-                      END,
-                      p.title,
-                      pr.url AS referrer_url,
-                      strftime('%Y-%m-%d %H:00:00', h.visit_date/1000000, 'unixepoch') AS visited_dt
-                    FROM {alias}.moz_historyvisits h
-                    JOIN {alias}.moz_places p         ON p.id = h.place_id
-                    LEFT JOIN {alias}.moz_historyvisits ph ON ph.id = h.from_visit
-                    LEFT JOIN {alias}.moz_places pr    ON pr.id = ph.place_id;
-                    """
-                ).replace("{alias}", alias)
-                cur.execute(sql, (profile_label,))
-            elif browser == "safari":
-                sql = (
-                    """
-                    INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
-                    SELECT
-                      'safari' AS browser,
-                      ?         AS profile,
-                      CASE
-                        WHEN instr(i.url, '?') > 0 THEN substr(i.url, 1, instr(i.url, '?') - 1)
-                        ELSE i.url
-                      END,
-                      v.title,
-                      NULL AS referrer_url,
-                      strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch') AS visited_dt
-                    FROM {alias}.history_items i
-                    LEFT JOIN {alias}.history_visits v ON v.history_item = i.id;
-                    """
-                ).replace("{alias}", alias)
-                cur.execute(sql, (profile_label,))
+            inserter = browser_inserters.get(browser)
+            if inserter:
+                inserter(cur, alias, profile_label)
 
-            # First commit changes and then detach:
             conn.commit()
             cur.execute(f"DETACH DATABASE {alias}")
     finally:
-        # Best-effort cleanup of temp copies
         for p in tmp_copies:
             try:
                 p.unlink()
             except Exception:
                 pass
 
+
+def build_unified_browser_history_db(dest_db: Path | None, sources: Iterable[tuple[str, Path]]) -> sqlite3.Connection:
+    conn = _create_unified_db_connection(dest_db)
+    _process_browser_sources(conn, sources)
     return conn
 
 
