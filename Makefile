@@ -15,3 +15,11 @@ fix:
 
 type:
 	uv run mypy
+
+radon:
+	uv run .github/scripts/check_radon.sh
+
+treepeat:
+	uv run treepeat detect .
+
+ci: test lint type radon treepeat
