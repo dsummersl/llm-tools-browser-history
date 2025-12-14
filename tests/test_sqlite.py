@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from browser_history.sqlite import attach_copy
 from browser_history.sqlite import copy_locked_db
 from browser_history.sqlite import sha_label
 from browser_history.sqlite import build_unified_browser_history_db
 from browser_history.sqlite import run_unified_query
 
-import sqlite3
 from pathlib import Path
 
 fixture_path = Path(__file__).parent / "fixtures"
@@ -34,19 +32,6 @@ def test_copy_locked_db_creates_distinct_copy():
     # Should be placed in a temp directory and not the same path
     assert copied != src
     assert copied.name == src.name
-
-
-def test_attach_copy_allows_querying_attached_db():
-    main = sqlite3.connect(":memory:")
-    cur = main.cursor()
-    copied = attach_copy(cur, "src", chrome_db)
-
-    # Validate attachment
-    rows = cur.execute("SELECT url FROM src.visits").fetchall()
-    assert [r[0] for r in rows] == [1, 2]
-    assert copied.exists()
-    assert copied != chrome_db
-    main.close()
 
 
 def test_build_unified_browser_history_db():

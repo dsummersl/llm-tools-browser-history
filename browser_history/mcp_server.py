@@ -1,10 +1,11 @@
 import logging
 import click
 import atexit
-from typing import Any, Iterable
+from typing import Any, Iterable, get_args
 
 from mcp.server.fastmcp import FastMCP
 
+from .browser_types import BrowserType
 from .toolbox import BrowserHistory
 from .sqlite import cleanup_unified_db
 
@@ -23,6 +24,7 @@ def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
 
     return mcp
 
+
 @click.command()
 @click.option(
     "--transport",
@@ -33,9 +35,9 @@ def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
 @click.option(
     "--sources",
     multiple=True,
-    type=click.Choice(["firefox", "safari", "chrome"]),
+    type=click.Choice(get_args(BrowserType)),
     default=None,
-    help="Specify one or more browsers (default: all detected browsers)"
+    help="Specify one or more browsers (default: all detected browsers)",
 )
 @click.option(
     "--max-rows",
@@ -44,10 +46,11 @@ def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
     show_default=True,
     help="Maximum rows to return from a search",
 )
-def cli(transport, sources, max_rows) -> None: # type: ignore
+def cli(transport, sources, max_rows) -> None:  # type: ignore
     logging.basicConfig(level=logging.INFO)
     atexit.register(cleanup_unified_db)
     make_mcp(sources, max_rows).run(transport=transport)
+
 
 if __name__ == "__main__":
     cli()

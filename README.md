@@ -22,7 +22,7 @@ Quick start for Claude Desktop - add to `~/Library/Application Support/Claude/cl
     "browser-history": {
       "command": "uvx",
       "args": [
-        "llm-tools-browser-history",
+        "browser-history-mcp",
       ]
     }
   }
