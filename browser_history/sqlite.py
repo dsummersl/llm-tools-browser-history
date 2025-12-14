@@ -1,4 +1,5 @@
-import sqlite3
+from sqlite3 import Cursor, Connection, connect
+import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -6,7 +7,28 @@ import pathlib
 import tempfile
 import shutil
 import hashlib
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Callable, Iterable
+from .browser_types import BrowserType
+
+logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def copy_locked_dbs(paths: list[pathlib.Path]) -> 'Generator[list[tuple[pathlib.Path, pathlib.Path]], None, None]':
+    tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="llm_bh"))
+    try:
+        copies = []
+        for path in paths:
+            dst = tmpdir / path.name
+            try:
+                shutil.copy2(path, dst)
+                copies.append((path, dst))
+            except OSError as e:
+                logger.warning(f"Failed to copy {path} to {dst}: {e}")
+        yield copies  # List of (original, copy) tuples
+    finally:
+        shutil.rmtree(tmpdir)
 
 
 def copy_locked_db(path: pathlib.Path) -> pathlib.Path:
@@ -16,22 +38,7 @@ def copy_locked_db(path: pathlib.Path) -> pathlib.Path:
     return dst
 
 
-@contextmanager
-def history_query(
-    sql_query: str, params: dict[str, str], db_path: pathlib.Path
-) -> Generator[list[sqlite3.Row], None, None]:
-    copied = copy_locked_db(db_path)
-    uri = f"file:{copied}?immutable=1&mode=ro"
-    con = sqlite3.connect(uri, uri=True)
-    con.row_factory = sqlite3.Row
-    try:
-        cur = con.execute(sql_query, params)
-        yield cur.fetchall()
-    finally:
-        con.close()
-
-
-_UNIFIED_DB_CONN: sqlite3.Connection | None = None
+_UNIFIED_DB_CONN: Connection | None = None
 
 
 def sha_label(browser: str, path: Path) -> str:
@@ -39,14 +46,7 @@ def sha_label(browser: str, path: Path) -> str:
     return f"{browser}:{h}"
 
 
-def attach_copy(cur: sqlite3.Cursor, alias: str, path: Path) -> Path:
-    copied = copy_locked_db(path)
-    uri = f"file:{copied}?immutable=1&mode=ro"
-    cur.execute("ATTACH DATABASE ? AS " + alias, (uri,))
-    return copied
-
-
-def insert_chrome_history(cur: sqlite3.Cursor, alias: str, profile_label: str) -> None:
+def insert_chrome_history(cur: Cursor, alias: str, profile_label: str) -> None:
     """Insert Chrome browser history into the unified database."""
     sql = (
         """
@@ -70,7 +70,7 @@ def insert_chrome_history(cur: sqlite3.Cursor, alias: str, profile_label: str) -
     cur.execute(sql, (profile_label,))
 
 
-def insert_firefox_history(cur: sqlite3.Cursor, alias: str, profile_label: str) -> None:
+def insert_firefox_history(cur: Cursor, alias: str, profile_label: str) -> None:
     """Insert Firefox browser history into the unified database."""
     sql = (
         """
@@ -94,7 +94,7 @@ def insert_firefox_history(cur: sqlite3.Cursor, alias: str, profile_label: str) 
     cur.execute(sql, (profile_label,))
 
 
-def insert_safari_history(cur: sqlite3.Cursor, alias: str, profile_label: str) -> None:
+def insert_safari_history(cur: Cursor, alias: str, profile_label: str) -> None:
     """Insert Safari browser history into the unified database."""
     sql = (
         """
@@ -116,14 +116,14 @@ def insert_safari_history(cur: sqlite3.Cursor, alias: str, profile_label: str) -
     cur.execute(sql, (profile_label,))
 
 
-def _create_unified_db_connection(dest_db: Path | None) -> sqlite3.Connection:
+def _create_unified_db_connection(dest_db: Path | None) -> Connection:
     """Create and initialize the unified database connection."""
     if dest_db is not None:
         if dest_db.exists():
             dest_db.unlink()
-        conn = sqlite3.connect(f"file:{dest_db}?mode=rwc", uri=True)
+        conn = connect(f"file:{dest_db}?mode=rwc", uri=True)
     else:
-        conn = sqlite3.connect(":memory:")
+        conn = connect(":memory:")
 
     cur = conn.cursor()
     cur.executescript(
@@ -145,47 +145,43 @@ def _create_unified_db_connection(dest_db: Path | None) -> sqlite3.Connection:
     return conn
 
 
-def _process_browser_sources(conn: sqlite3.Connection, sources: Iterable[tuple[str, Path]]) -> None:
+def _process_browser_sources(conn: Connection, sources: Iterable[tuple[BrowserType, Path]]) -> None:
     """Process and import browser history from all sources."""
     cur = conn.cursor()
-    tmp_copies: list[Path] = []
     alias_num = 0
 
-    browser_inserters = {
+    browser_inserters: dict[BrowserType, Callable[[Cursor, str, str], None]] = {
         "chrome": insert_chrome_history,
         "firefox": insert_firefox_history,
         "safari": insert_safari_history,
     }
 
-    try:
-        for browser, path in sources:
+    with copy_locked_dbs([path for _, path in sources]) as locked_copies:
+        for (og_path, copy_path) in locked_copies:
+            browser: BrowserType = next(browser for browser, path in sources if path == og_path)
             alias_num += 1
-            alias = f"src{alias_num}"
-            copied = attach_copy(cur, alias, path)
-            tmp_copies.append(copied)
-            profile_label = sha_label(browser, path)
 
-            inserter = browser_inserters.get(browser)
-            if inserter:
-                inserter(cur, alias, profile_label)
+            alias = f"src{alias_num}"
+            cur.execute("ATTACH DATABASE ? AS " + alias, (f"file:{copy_path}?immutable=1&mode=ro",))
+
+            profile_label = sha_label(browser, og_path)
+
+            inserter = browser_inserters[browser]
+            inserter(cur, alias, profile_label)
 
             conn.commit()
             cur.execute(f"DETACH DATABASE {alias}")
-    finally:
-        for p in tmp_copies:
-            try:
-                p.unlink()
-            except Exception:
-                pass
 
 
-def build_unified_browser_history_db(dest_db: Path | None, sources: Iterable[tuple[str, Path]]) -> sqlite3.Connection:
+def build_unified_browser_history_db(
+    dest_db: Path | None, sources: Iterable[tuple[BrowserType, Path]]
+) -> Connection:
     conn = _create_unified_db_connection(dest_db)
     _process_browser_sources(conn, sources)
     return conn
 
 
-def get_or_create_unified_db(sources: Iterable[tuple[str, Path]]) -> sqlite3.Connection:
+def get_or_create_unified_db(sources: Iterable[tuple[BrowserType, Path]]) -> Connection:
     global _UNIFIED_DB_CONN
     if _UNIFIED_DB_CONN is not None:
         return _UNIFIED_DB_CONN
@@ -212,7 +208,7 @@ def cleanup_unified_db() -> None:
 
 
 def run_unified_query(
-    conn: sqlite3.Connection, sql: str, params: dict[str, object] | None = None, max_rows: int = 100
+    conn: Connection, sql: str, params: dict[str, object] | None = None, max_rows: int = 100
 ) -> list[Any]:
     cur = conn.execute(sql, params or {})
     return cur.fetchmany(max_rows)

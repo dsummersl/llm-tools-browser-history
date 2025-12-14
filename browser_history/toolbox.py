@@ -1,7 +1,7 @@
 import json
 import pathlib
 import llm
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any, Sequence, get_args
 
 
@@ -16,7 +16,7 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
     """Toolbox allowing search through browser history."""
 
     def __init__(self, sources: Iterable[str] | None = None, max_rows: int = 100):
-        self.sources: list[tuple[str, pathlib.Path]] = []
+        self.sources: list[tuple[BrowserType, pathlib.Path]] = []
         self.max_rows = max_rows
 
         if not sources:
@@ -26,7 +26,7 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
 
     def _initialize_sources(self, sources: Iterable[str]) -> None:
         """Initialize browser history sources."""
-        browser_finders = {
+        browser_finders: dict[BrowserType, Callable[[], list[pathlib.Path]]] = {
             "firefox": find_firefox_places_sqlite,
             "chrome": find_chrome_history_paths,
             "safari": find_safari_history_paths,

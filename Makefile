@@ -20,6 +20,6 @@ radon:
 	uv run .github/scripts/check_radon.sh
 
 treepeat:
-  uv run treepeat detect -i '**/docs/adr/*.md' .
+	uv run treepeat detect -i '**/docs/adr/*.md' .
 
 ci: test lint type radon treepeat
