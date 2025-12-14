@@ -28,14 +28,14 @@ def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
 @click.command()
 @click.option(
     "--transport",
-    type=click.Choice(get_args(BrowserType)),
+    type=click.Choice(["stdio", "sse", "streamable-http"]),
     default="stdio",
     help="Specify the transport method (stdio, sse, streamable-http)",
 )
 @click.option(
     "--sources",
     multiple=True,
-    type=click.Choice(["firefox", "safari", "chrome"]),
+    type=click.Choice(get_args(BrowserType)),
     default=None,
     help="Specify one or more browsers (default: all detected browsers)",
 )
