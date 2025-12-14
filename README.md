@@ -22,6 +22,8 @@ Quick start for Claude Desktop - add to `~/Library/Application Support/Claude/cl
     "browser-history": {
       "command": "uvx",
       "args": [
+        "--from",
+        "llm-tools-browser-history",
         "browser-history-mcp",
       ]
     }
@@ -31,13 +33,15 @@ Quick start for Claude Desktop - add to `~/Library/Application Support/Claude/cl
 
 Once configured, you can use the `browser_history` tool in conversations with Claude.
 
-
 Note that the CLI supports additional options as needed:
 
 
 ```sh
 browser-history-mcp --help
 ```
+
+
+Note: Safari browser history is blocked by TCC - you would need to explicitly allow access to your Safari data (I don't yet have instructions for this, but welcome contributions!)
 
 ## llm CLI tool
 
