@@ -124,19 +124,19 @@ git commit -m "feat: add debug logging to Safari provider"
 
 ---
 
-### [ ] Task 5: Final Verification and Cleanup
+### [x] Task 5: Final Verification and Cleanup
 
-**Step 1: Run all tests** [ ]
+**Step 1: Run all tests** [x]
 
 Run: `make ci`
 Expected: All tests pass, linting/typing OK.
 
-**Step 2: Verify default behavior** [ ]
+**Step 2: Verify default behavior** [x]
 
 Run: `uv run browser-history-mcp`
 Expected: No debug logs visible (defaulting to warning).
 
-**Step 3: Final Commit** [ ]
+**Step 3: Final Commit** [x]
 
 ```bash
 git commit --allow-empty -m "chore: final verification complete for log-level feature"
