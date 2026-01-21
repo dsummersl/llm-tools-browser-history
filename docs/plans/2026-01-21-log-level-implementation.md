@@ -49,31 +49,23 @@ git commit -m "feat: add -l/--log-level parameter to CLI"
 
 ---
 
-### [ ] Task 2: Add Debug Logging to Chrome Provider
+### [x] Task 2: Add Debug Logging to Chrome Provider
 
 **Files:**
-- [ ] Modify: `browser_history/chrome.py`
+- [x] Modify: `browser_history/chrome.py`
 
-**Step 1: Identify insertion point** [ ]
+**Step 1: Identify insertion point** [x]
 
 Find where Chrome paths are checked.
 
-**Step 2: Add debug logs** [ ]
+**Step 2: Add debug logs** [x]
 
-```python
-# browser_history/chrome.py
-# Ensure logger is defined: logger = logging.getLogger(__name__)
-
-# In get_chrome_history_paths or similar discovery loop:
-logger.debug(f"Checking for Chrome history at: {path}")
-```
-
-**Step 3: Verify manually** [ ]
+**Step 3: Verify manually** [x]
 
 Run: `uv run browser-history-mcp -l debug` (then Ctrl+C)
 Check stderr for "Checking for Chrome history at: ..."
 
-**Step 4: Commit** [ ]
+**Step 4: Commit** [x]
 
 ```bash
 git add browser_history/chrome.py

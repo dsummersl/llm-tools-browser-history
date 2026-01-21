@@ -1,6 +1,9 @@
 import pathlib
 import datetime
 import glob
+import logging
+
+logger = logging.getLogger(__name__)
 
 WEBKIT_EPOCH = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
 
@@ -14,5 +17,9 @@ def find_chrome_history_paths() -> list[pathlib.Path]:
     linux_chromium = home / ".config" / "chromium" / "*" / "History"
     snap_chromium = home / "snap" / "chromium" / "common" / ".config" / "chromium" / "*" / "History"
     for pattern in (mac_chrome, mac_chromium, linux_chrome, linux_chromium, snap_chromium):
-        candidates.extend(pathlib.Path(p) for p in glob.glob(str(pattern)))
+        logger.debug(f"Checking for Chrome history at: {pattern}")
+        for p in glob.glob(str(pattern)):
+            path = pathlib.Path(p)
+            logger.debug(f"Found Chrome history at: {path}")
+            candidates.append(path)
     return candidates
