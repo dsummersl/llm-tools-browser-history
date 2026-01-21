@@ -99,28 +99,23 @@ git commit -m "feat: add debug logging to Firefox provider"
 
 ---
 
-### [ ] Task 4: Add Debug Logging to Safari Provider
+### [x] Task 4: Add Debug Logging to Safari Provider
 
 **Files:**
-- [ ] Modify: `browser_history/safari.py`
+- [x] Modify: `browser_history/safari.py`
 
-**Step 1: Identify insertion point** [ ]
+**Step 1: Identify insertion point** [x]
 
 Find where Safari history path is checked.
 
-**Step 2: Add debug logs** [ ]
+**Step 2: Add debug logs** [x]
 
-```python
-# browser_history/safari.py
-logger.debug(f"Checking for Safari history at: {safari_path}")
-```
-
-**Step 3: Verify manually** [ ]
+**Step 3: Verify manually** [x]
 
 Run: `uv run browser-history-mcp -l debug` (then Ctrl+C)
 Check stderr for Safari logs.
 
-**Step 4: Commit** [ ]
+**Step 4: Commit** [x]
 
 ```bash
 git add browser_history/safari.py
