@@ -41,6 +41,10 @@ Writing guidance:
 - Only include a brief description of the thing in docstrings (no arguments or return types)
 - Do not use docstrings at the beginning of files.
 
+## Execution Preferences
+
+- **Subagent-Driven Development**: Prefer using `superpowers:subagent-driven-development` for executing implementation plans within the same session.
+
 ## Project Structure
 
 ```
