@@ -11,6 +11,14 @@ from .sqlite import cleanup_unified_db
 
 logger = logging.getLogger(__name__)
 
+LOG_LEVELS = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+    "critical": logging.CRITICAL,
+}
+
 
 def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
     mcp = FastMCP("browser-history", stateless_http=True, json_response=True)
@@ -46,8 +54,16 @@ def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
     show_default=True,
     help="Maximum rows to return from a search",
 )
-def cli(transport, sources, max_rows) -> None:  # type: ignore
-    logging.basicConfig(level=logging.INFO)
+@click.option(
+    "--log-level",
+    "-l",
+    type=click.Choice(list(LOG_LEVELS.keys())),
+    default="warning",
+    show_default=True,
+    help="Set the logging level",
+)
+def cli(transport, sources, max_rows, log_level) -> None:  # type: ignore
+    logging.basicConfig(level=LOG_LEVELS[log_level])
     atexit.register(cleanup_unified_db)
     make_mcp(sources, max_rows).run(transport=transport)
 
