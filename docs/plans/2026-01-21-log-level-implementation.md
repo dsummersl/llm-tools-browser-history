@@ -74,30 +74,23 @@ git commit -m "feat: add debug logging to Chrome provider"
 
 ---
 
-### [ ] Task 3: Add Debug Logging to Firefox Provider
+### [x] Task 3: Add Debug Logging to Firefox Provider
 
 **Files:**
-- [ ] Modify: `browser_history/firefox.py`
+- [x] Modify: `browser_history/firefox.py`
 
-**Step 1: Identify insertion point** [ ]
+**Step 1: Identify insertion point** [x]
 
 Find where Firefox profiles and paths are resolved.
 
-**Step 2: Add debug logs** [ ]
+**Step 2: Add debug logs** [x]
 
-```python
-# browser_history/firefox.py
-logger.debug(f"Checking for Firefox profiles in: {base_path}")
-# ...
-logger.debug(f"Found Firefox history database at: {db_path}")
-```
-
-**Step 3: Verify manually** [ ]
+**Step 3: Verify manually** [x]
 
 Run: `uv run browser-history-mcp -l debug` (then Ctrl+C)
 Check stderr for Firefox logs.
 
-**Step 4: Commit** [ ]
+**Step 4: Commit** [x]
 
 ```bash
 git add browser_history/firefox.py
