@@ -1,8 +1,14 @@
 from __future__ import annotations
+import pytest
 
 from pathlib import Path
 
-from browser_history.qp_whitelist import load_whitelist, process_url, _match_domain
+from browser_history.qp_whitelist import (
+    load_whitelist,
+    process_url,
+    _match_domain,
+    default_query_param_whitelist,
+)
 
 
 def test_load_default_whitelist():
@@ -13,23 +19,23 @@ def test_load_default_whitelist():
     assert "v" in wl["youtube.com"]
 
 
-def test_load_custom_whitelist(tmp_path: Path):
-    f = tmp_path / "wl.yaml"
-    f.write_text("example.com:\n  - foo\n  - bar\n")
-    wl = load_whitelist(f)
-    assert wl == {"example.com": ["foo", "bar"]}
-
-
 def test_load_whitelist_missing_file():
-    wl = load_whitelist(Path("/nonexistent/file.yaml"))
-    assert wl == {}
+    with pytest.raises(FileNotFoundError):
+        load_whitelist(Path("/nonexistent/file.yaml"))
 
 
-def test_load_whitelist_malformed(tmp_path: Path):
-    f = tmp_path / "bad.yaml"
-    f.write_text("not a mapping")
+@pytest.mark.parametrize(
+    "file_content,expected",
+    [
+        ("example.com:\n  - foo\n  - bar\n", {"example.com": ["foo", "bar"]}),
+        ("not a mapping", default_query_param_whitelist),
+    ],
+)
+def test_load_whitelist(tmp_path: Path, file_content, expected):
+    f = tmp_path / "wl.yaml"
+    f.write_text(file_content)
     wl = load_whitelist(f)
-    assert wl == {}
+    assert wl == expected
 
 
 def test_match_domain_exact():
@@ -54,18 +60,18 @@ def test_match_domain_no_match():
     assert _match_domain("example.com", wl) is None
 
 
-def test_process_url_no_query_params():
-    result = process_url("https://example.com/page", {})
-    assert result["url"] == "https://example.com/page"
-    assert result["domain"] == "example.com"
-    assert result["stripped_qp"] == ""
-
-
-def test_process_url_strip_all_no_whitelist():
-    result = process_url("https://example.com/page?a=1&b=2", {})
-    assert result["url"] == "https://example.com/page"
-    assert result["domain"] == "example.com"
-    assert result["stripped_qp"] == "a,b"
+@pytest.mark.parametrize(
+    "url, whitelist, expected_url, expected_domain, expected_stripped_qp",
+    [
+        ("https://example.com/page", {}, "https://example.com/page", "example.com", ""),
+        ("https://example.com/page?a=1&b=2", {}, "https://example.com/page", "example.com", "a,b"),
+    ],
+)
+def test_process_url(url, whitelist, expected_url, expected_domain, expected_stripped_qp):
+    result = process_url(url, whitelist)
+    assert result["url"] == expected_url
+    assert result["domain"] == expected_domain
+    assert result["stripped_qp"] == expected_stripped_qp
 
 
 def test_process_url_whitelist_preserves_allowed():
