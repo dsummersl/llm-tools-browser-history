@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import tempfile
 
 from browser_history.qp_whitelist import load_whitelist, process_url, _match_domain
 

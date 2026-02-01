@@ -3,7 +3,7 @@ import importlib.metadata
 import click
 import atexit
 from pathlib import Path
-from typing import Any, Iterable, get_args
+from typing import Any, Iterable, Literal, get_args
 
 from mcp.server.fastmcp import FastMCP
 
@@ -88,7 +88,7 @@ def make_mcp(sources: Iterable[str], max_rows: int, whitelist: Whitelist | None 
     default=None,
     help="Execute a single SQL query against the browser history, print results, and exit.",
 )
-def cli(  # type: ignore
+def cli(
     transport: str,
     sources: tuple[str, ...],
     max_rows: int,
@@ -108,7 +108,8 @@ def cli(  # type: ignore
         return
 
     atexit.register(cleanup_unified_db)
-    make_mcp(sources, max_rows, whitelist=whitelist).run(transport=transport)
+    transport_mode: Literal["stdio", "sse", "streamable-http"] = transport  # type: ignore[assignment]
+    make_mcp(sources, max_rows, whitelist=whitelist).run(transport=transport_mode)
 
 
 if __name__ == "__main__":

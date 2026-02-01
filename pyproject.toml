@@ -33,6 +33,7 @@ dev = [
   "pre-commit>=3.7",
   "treepeat>=0.1.0",
   "radon>=6.0.1",
+  "types-PyYAML>=6.0",
 ]
 
 [tool.ruff]
