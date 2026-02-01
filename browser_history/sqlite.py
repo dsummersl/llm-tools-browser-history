@@ -225,3 +225,12 @@ def run_unified_query(
 ) -> list[Any]:
     cur = conn.execute(sql, params or {})
     return cur.fetchmany(max_rows)
+
+
+def run_unified_query_with_headers(
+    conn: Connection, sql: str, params: dict[str, object] | None = None, max_rows: int = 100
+) -> tuple[list[str], list[Any]]:
+    """Like :func:`run_unified_query` but also returns column headers."""
+    cur = conn.execute(sql, params or {})
+    headers = [desc[0] for desc in cur.description] if cur.description else []
+    return headers, cur.fetchmany(max_rows)

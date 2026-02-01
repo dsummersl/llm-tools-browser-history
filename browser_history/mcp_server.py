@@ -9,7 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .browser_types import BrowserType
 from .toolbox import BrowserHistory
-from .sqlite import cleanup_unified_db
+from .sqlite import cleanup_unified_db, get_or_create_unified_db, run_unified_query_with_headers
 from .qp_whitelist import load_whitelist, Whitelist
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,56 @@ def make_mcp(sources: Iterable[str], max_rows: int, whitelist: Whitelist | None 
         return browser_history._do_search(sql)
 
     return mcp
+
+
+def _stringify_row(row: Any) -> list[str]:
+    """Convert a row of values to strings, replacing None with empty string."""
+    return [str(v) if v is not None else "" for v in row]
+
+
+def _column_widths(all_rows: list[list[str]]) -> list[int]:
+    """Compute the max width for each column across all rows (including header)."""
+    widths = [0] * (len(all_rows[0]) if all_rows else 0)
+    for row in all_rows:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(cell))
+    return widths
+
+
+def _format_table(headers: list[str], rows: list[Any]) -> str:
+    """Format *headers* and *rows* as an aligned text table."""
+    str_rows = [_stringify_row(row) for row in rows]
+    widths = _column_widths([headers] + str_rows)
+    fmt = "  ".join(f"{{:<{w}}}" for w in widths)
+    separator = ["-" * w for w in widths]
+    lines = [fmt.format(*headers), fmt.format(*separator)]
+    lines.extend(fmt.format(*row) for row in str_rows)
+    return "\n".join(lines)
+
+
+def _run_single_query(
+    sources: tuple[str, ...],
+    max_rows: int,
+    whitelist: Whitelist,
+    sql: str,
+) -> None:
+    """Execute a single SQL query, print a human-readable table, then exit."""
+    try:
+        bh = BrowserHistory(sources or None, max_rows, whitelist=whitelist)
+        conn = get_or_create_unified_db(bh.sources, whitelist=whitelist)
+        headers, rows = run_unified_query_with_headers(conn, sql, max_rows=max_rows)
+    except Exception as exc:
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1) from None
+    finally:
+        cleanup_unified_db()
+
+    if not rows:
+        click.echo("(no results)")
+        return
+
+    click.echo(_format_table(headers, rows))
+    click.echo(f"\n({len(rows)} row{'s' if len(rows) != 1 else ''})")
 
 
 @click.command()
@@ -101,10 +151,7 @@ def cli(
     whitelist = load_whitelist(qp_whitelist_path)
 
     if single_query is not None:
-        browser_history = BrowserHistory(sources or None, max_rows, whitelist=whitelist)
-        result = browser_history.search(single_query)
-        click.echo(result)
-        cleanup_unified_db()
+        _run_single_query(sources, max_rows, whitelist, single_query)
         return
 
     atexit.register(cleanup_unified_db)
