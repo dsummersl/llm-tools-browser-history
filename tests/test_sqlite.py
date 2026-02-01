@@ -1,9 +1,11 @@
 from __future__ import annotations
+import sqlite3
 
 from browser_history.sqlite import copy_locked_db
 from browser_history.sqlite import sha_label
 from browser_history.sqlite import build_unified_browser_history_db
 from browser_history.sqlite import run_unified_query
+from browser_history.sqlite import _apply_qp_whitelist
 
 from pathlib import Path
 
@@ -139,3 +141,102 @@ def test_build_unified_browser_history_db_with_file():
 
     # Clean up
     dest.unlink()
+
+
+def test_apply_qp_whitelist_to_referrer():
+    """Test that referrer URLs get stripped via whitelist."""
+    conn = sqlite3.connect(":memory:")
+    cur = conn.cursor()
+    cur.executescript(
+        """
+        CREATE TABLE browser_history (
+            browser TEXT NOT NULL,
+            profile TEXT,
+            url TEXT NOT NULL,
+            title TEXT,
+            referrer_url TEXT,
+            visited_dt DATETIME NOT NULL,
+            domain TEXT,
+            stripped_qp TEXT,
+            referrer_domain TEXT,
+            referrer_stripped_qp TEXT
+        );
+        """
+    )
+    # Insert a row with referrer URL containing query parameters
+    cur.execute(
+        "INSERT INTO browser_history (browser, profile, url, referrer_url, visited_dt) VALUES (?, ?, ?, ?, ?)",
+        (
+            "chrome",
+            "Default",
+            "https://example.com/page?keep=1&strip=2",
+            "https://google.com/search?q=hello&ref=abc",
+            "2025-01-01 00:00:00",
+        ),
+    )
+    conn.commit()
+
+    whitelist = {"google.com": ["q"]}
+    _apply_qp_whitelist(conn, whitelist)
+
+    cur.execute(
+        "SELECT url, domain, stripped_qp, referrer_url, referrer_domain, referrer_stripped_qp FROM browser_history"
+    )
+    row = cur.fetchone()
+    # Check main URL stripping (no rule for example.com, strip all)
+    assert row[0] == "https://example.com/page"
+    assert row[1] == "example.com"
+    assert row[2] == "keep,strip"
+    # Check referrer URL stripping (keep q, strip ref)
+    assert row[3] == "https://google.com/search?q=hello"
+    assert row[4] == "google.com"
+    assert row[5] == "ref"
+    conn.close()
+
+
+def test_apply_qp_whitelist_null_referrer():
+    """Test that NULL referrer URLs are handled correctly."""
+    conn = sqlite3.connect(":memory:")
+    cur = conn.cursor()
+    cur.executescript(
+        """
+        CREATE TABLE browser_history (
+            browser TEXT NOT NULL,
+            profile TEXT,
+            url TEXT NOT NULL,
+            title TEXT,
+            referrer_url TEXT,
+            visited_dt DATETIME NOT NULL,
+            domain TEXT,
+            stripped_qp TEXT,
+            referrer_domain TEXT,
+            referrer_stripped_qp TEXT
+        );
+        """
+    )
+    cur.execute(
+        "INSERT INTO browser_history (browser, profile, url, referrer_url, visited_dt) VALUES (?, ?, ?, ?, ?)",
+        (
+            "chrome",
+            "Default",
+            "https://example.com/page?keep=1&strip=2",
+            None,
+            "2025-01-01 00:00:00",
+        ),
+    )
+    conn.commit()
+
+    whitelist = {"example.com": ["keep"]}
+    _apply_qp_whitelist(conn, whitelist)
+
+    cur.execute(
+        "SELECT url, domain, stripped_qp, referrer_url, referrer_domain, referrer_stripped_qp FROM browser_history"
+    )
+    row = cur.fetchone()
+    assert row[0] == "https://example.com/page?keep=1"
+    assert row[1] == "example.com"
+    assert row[2] == "strip"
+    assert row[3] is None
+    assert row[4] is None
+    assert row[5] is None
+    conn.close()

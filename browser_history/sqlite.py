@@ -48,6 +48,7 @@ def sha_label(browser: str, path: Path) -> str:
     h = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:10]
     return f"{browser}:{h}"
 
+
 def _execute_sql(sql: str, cur: Cursor, params: tuple[str, ...] = ()) -> None:
     cur.execute(sql, params)
 
@@ -143,7 +144,9 @@ def _create_unified_db_connection(dest_db: Path | None) -> Connection:
           referrer_url TEXT,
           visited_dt  DATETIME NOT NULL,
           domain       TEXT,
-          stripped_qp  TEXT
+          stripped_qp  TEXT,
+          referrer_domain TEXT,
+          referrer_stripped_qp TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_bh_time  ON browser_history(visited_dt);
         CREATE INDEX IF NOT EXISTS idx_bh_url   ON browser_history(url);
@@ -156,12 +159,32 @@ def _create_unified_db_connection(dest_db: Path | None) -> Connection:
 def _apply_qp_whitelist(conn: Connection, whitelist: Whitelist) -> None:
     """Post-process all rows: apply the query-parameter whitelist."""
     cur = conn.cursor()
-    rows = cur.execute("SELECT rowid, url FROM browser_history").fetchall()
-    for rowid, raw_url in rows:
+    rows = cur.execute("SELECT rowid, url, referrer_url FROM browser_history").fetchall()
+    for rowid, raw_url, raw_referrer in rows:
         result = process_url(raw_url, whitelist)
+        if raw_referrer is not None:
+            ref_result = process_url(raw_referrer, whitelist)
+            ref_url = ref_result["url"]
+            ref_domain = ref_result["domain"]
+            ref_stripped = ref_result["stripped_qp"]
+        else:
+            ref_url = None
+            ref_domain = None
+            ref_stripped = None
         cur.execute(
-            "UPDATE browser_history SET url = ?, domain = ?, stripped_qp = ? WHERE rowid = ?",
-            (result["url"], result["domain"], result["stripped_qp"], rowid),
+            """UPDATE browser_history
+               SET url = ?, domain = ?, stripped_qp = ?,
+                   referrer_url = ?, referrer_domain = ?, referrer_stripped_qp = ?
+               WHERE rowid = ?""",
+            (
+                result["url"],
+                result["domain"],
+                result["stripped_qp"],
+                ref_url,
+                ref_domain,
+                ref_stripped,
+                rowid,
+            ),
         )
     conn.commit()
 

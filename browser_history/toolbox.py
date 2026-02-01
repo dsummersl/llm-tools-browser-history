@@ -59,10 +59,12 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
             profile     TEXT,                   -- browser profile name, e.g. 'Default', 'Profile 1', 'default-release'
             url         TEXT NOT NULL,          -- The URL visited (query params filtered by whitelist)
             title       TEXT,                   -- The title of the page visited.
-            referrer_url TEXT,                  -- NULL on Safari, otherwise the referrer
+            referrer_url TEXT,                  -- NULL on Safari, otherwise the referrer (query params filtered by whitelist)
             visited_dt  DATETIME NOT NULL,      -- UTC datetime
             domain      TEXT,                   -- The domain of the URL
-            stripped_qp TEXT                    -- Comma-separated list of query param keys that were removed
+            stripped_qp TEXT,                   -- Comma-separated list of query param keys that were removed
+            referrer_domain TEXT,               -- The domain of the referrer URL
+            referrer_stripped_qp TEXT           -- Comma-separated list of query param keys removed from referrer
             );
 
         This method will no more than 100 rows of data.
