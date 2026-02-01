@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 Whitelist = dict[str, list[str]]
 
 
-default_query_param_whitelist = {
+default_query_param_whitelist: Whitelist = {
     "google.com": ["q", "tbm"],
     "bing.com": ["q"],
     "duckduckgo.com": ["q", "tbm"],
@@ -35,7 +35,7 @@ class ProcessedURL(TypedDict):
     stripped_qp: str
 
 
-def _read_yaml(path: Path | None) -> object:
+def _read_yaml(path: Path | None) -> Whitelist:
     """Read and parse YAML from *path* or the built-in default.
 
     Returns the parsed object or ``None`` on any error.

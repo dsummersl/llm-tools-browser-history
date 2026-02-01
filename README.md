@@ -112,7 +112,8 @@ llm -T llm_time -T BrowserHistory "what pages about yosemite did I look up recen
 # Limit to Firefox and Safari sources
 llm -T llm_time -T 'BrowserHistory(["firefox","safari"])' "what pages about yosemite did I look up recently?"
 
-llm -T BrowserHistory "show a table of how much I used each browser over the past year by month"
+# Extend the number of rows returned, and whitelist query parameters for example.com:
+llm -T 'BrowserHistory(None,1000,{"example.com": ["q"]}' "Show the query parameters for the last 1000 visits to example.com"
 ```
 
 
