@@ -16,9 +16,16 @@ Whitelist = dict[str, list[str]]
 
 default_query_param_whitelist = {
     "google.com": ["q", "tbm"],
-    "youtube.com": ["v", "t"],
+    "bing.com": ["q"],
+    "duckduckgo.com": ["q", "tbm"],
+    "ebay.com": ["_nkw", "_sacat"],
+    "youtube.com": ["v", "t", "list", "search_query"],
+    "vimeo.com": ["q"],
     "amazon.com": ["k", "field-keywords"],
-    "github.com": ["q"],
+    "github.com": ["q", "type", "l"],
+    "reddit.com": ["q"],
+    "wikipedia.org": ["search"],
+    "maps.google.com": ["q"],
 }
 
 
