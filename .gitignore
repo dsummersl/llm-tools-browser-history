@@ -8,3 +8,8 @@ __pycache__/
 .pytest_cache/
 
 tests/fixtures/*.sqlite*
+
+# Build / packaging
+*.egg-info/
+dist/
+build/
