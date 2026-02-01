@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def copy_locked_dbs(paths: list[pathlib.Path]) -> 'Generator[list[tuple[pathlib.Path, pathlib.Path]], None, None]':
+def copy_locked_dbs(
+    paths: list[pathlib.Path],
+) -> "Generator[list[tuple[pathlib.Path, pathlib.Path]], None, None]":
     tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="llm_bh"))
     try:
         copies = []
@@ -46,11 +48,15 @@ def sha_label(browser: str, path: Path) -> str:
     h = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:10]
     return f"{browser}:{h}"
 
+def _execute_sql(sql: str, cur: Cursor, params: tuple[str, ...] = ()) -> None:
+    cur.execute(sql, params)
+
 
 def insert_chrome_history(cur: Cursor, alias: str, profile_label: str) -> None:
     """Insert Chrome browser history into the unified database."""
-    sql = (
-        """
+    _execute_sql(
+        (
+            """
         INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
         SELECT
           'chrome' AS browser,
@@ -64,14 +70,17 @@ def insert_chrome_history(cur: Cursor, alias: str, profile_label: str) -> None:
         LEFT JOIN {alias}.visits pv ON pv.id = v.from_visit
         LEFT JOIN {alias}.urls  r   ON r.id = pv.url;
         """
-    ).replace("{alias}", alias)
-    cur.execute(sql, (profile_label,))
+        ).replace("{alias}", alias),
+        cur,
+        (profile_label,),
+    )
 
 
 def insert_firefox_history(cur: Cursor, alias: str, profile_label: str) -> None:
     """Insert Firefox browser history into the unified database."""
-    sql = (
-        """
+    _execute_sql(
+        (
+            """
         INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
         SELECT
           'firefox' AS browser,
@@ -85,14 +94,17 @@ def insert_firefox_history(cur: Cursor, alias: str, profile_label: str) -> None:
         LEFT JOIN {alias}.moz_historyvisits ph ON ph.id = h.from_visit
         LEFT JOIN {alias}.moz_places pr    ON pr.id = ph.place_id;
         """
-    ).replace("{alias}", alias)
-    cur.execute(sql, (profile_label,))
+        ).replace("{alias}", alias),
+        cur,
+        (profile_label,),
+    )
 
 
 def insert_safari_history(cur: Cursor, alias: str, profile_label: str) -> None:
     """Insert Safari browser history into the unified database."""
-    sql = (
-        """
+    _execute_sql(
+        (
+            """
         INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
         SELECT
           'safari' AS browser,
@@ -104,8 +116,10 @@ def insert_safari_history(cur: Cursor, alias: str, profile_label: str) -> None:
         FROM {alias}.history_items i
         LEFT JOIN {alias}.history_visits v ON v.history_item = i.id;
         """
-    ).replace("{alias}", alias)
-    cur.execute(sql, (profile_label,))
+        ).replace("{alias}", alias),
+        cur,
+        (profile_label,),
+    )
 
 
 def _create_unified_db_connection(dest_db: Path | None) -> Connection:
@@ -164,7 +178,7 @@ def _process_browser_sources(conn: Connection, sources: Iterable[tuple[BrowserTy
     }
 
     with copy_locked_dbs([path for _, path in sources]) as locked_copies:
-        for (og_path, copy_path) in locked_copies:
+        for og_path, copy_path in locked_copies:
             browser: BrowserType = next(browser for browser, path in sources if path == og_path)
             alias_num += 1
 

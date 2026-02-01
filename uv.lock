@@ -666,7 +666,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=6" },
     { name = "radon", specifier = ">=6.0.1" },
     { name = "ruff", specifier = ">=0.5" },
-    { name = "treepeat", specifier = ">=0.1.0" },
+    { name = "treepeat", specifier = ">=0.4.0" },
     { name = "types-pyyaml", specifier = ">=6.0" },
 ]
 

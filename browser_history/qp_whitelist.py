@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from importlib import resources
 from pathlib import Path
 from typing import TypedDict
 from urllib.parse import urlparse, urlencode, parse_qs
@@ -13,6 +12,14 @@ import yaml
 logger = logging.getLogger(__name__)
 
 Whitelist = dict[str, list[str]]
+
+
+default_query_param_whitelist = {
+    "google.com": ["q", "tbm"],
+    "youtube.com": ["v", "t"],
+    "amazon.com": ["k", "field-keywords"],
+    "github.com": ["q"],
+}
 
 
 class ProcessedURL(TypedDict):
@@ -26,23 +33,18 @@ def _read_yaml(path: Path | None) -> object:
 
     Returns the parsed object or ``None`` on any error.
     """
-    try:
-        if path is None:
-            ref = resources.files("browser_history").joinpath("default_whitelist.yaml")
-            text = ref.read_text(encoding="utf-8")
-        else:
-            text = path.read_text(encoding="utf-8")
+    if path is not None:
+        text = path.read_text(encoding="utf-8")
         return yaml.safe_load(text)
-    except Exception:
-        logger.warning("Failed to load whitelist from %s; stripping all query params", path)
-        return None
+    else:
+        return default_query_param_whitelist
 
 
 def _validate_whitelist(data: object) -> Whitelist:
     """Convert raw parsed YAML into a validated :data:`Whitelist`."""
     if not isinstance(data, dict):
-        logger.warning("Whitelist YAML is not a mapping; stripping all query params")
-        return {}
+        logger.warning("Whitelist YAML is not a mapping; using default parameters")
+        return default_query_param_whitelist
     result: Whitelist = {}
     for domain, keys in data.items():
         if isinstance(keys, list):
@@ -60,8 +62,6 @@ def load_whitelist(path: Path | None) -> Whitelist:
     (which makes every domain fall back to "strip all").
     """
     data = _read_yaml(path)
-    if data is None:
-        return {}
     return _validate_whitelist(data)
 
 
@@ -116,7 +116,7 @@ def process_url(raw_url: str, whitelist: Whitelist) -> ProcessedURL:
     Returns a :class:`ProcessedURL` with the cleaned URL, the domain,
     and a comma-separated list of stripped parameter *names*.
     """
-    domain = (urlparse(raw_url).hostname or "")
+    domain = urlparse(raw_url).hostname or ""
     query_params = parse_qs(urlparse(raw_url).query, keep_blank_values=True)
 
     if not query_params:
