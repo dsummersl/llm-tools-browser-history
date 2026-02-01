@@ -1,0 +1,14 @@
+# Default query-parameter whitelist.
+# Maps domains to a list of allowed query-parameter keys.
+# Subdomains are matched against parent domains when no exact match exists.
+google.com:
+  - q
+  - tbm
+youtube.com:
+  - v
+  - t
+amazon.com:
+  - k
+  - field-keywords
+github.com:
+  - q

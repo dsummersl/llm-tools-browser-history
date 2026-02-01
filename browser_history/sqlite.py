@@ -10,6 +10,7 @@ import hashlib
 from typing import Any
 from collections.abc import Callable, Iterable
 from .browser_types import BrowserType
+from .qp_whitelist import Whitelist, process_url
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +55,7 @@ def insert_chrome_history(cur: Cursor, alias: str, profile_label: str) -> None:
         SELECT
           'chrome' AS browser,
           ?         AS profile,
-          CASE
-            WHEN instr(u.url, '?') > 0 THEN substr(u.url, 1, instr(u.url, '?') - 1)
-            ELSE u.url
-          END,
+          u.url,
           u.title,
           r.url AS referrer_url,
           strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt
@@ -78,10 +76,7 @@ def insert_firefox_history(cur: Cursor, alias: str, profile_label: str) -> None:
         SELECT
           'firefox' AS browser,
           ?          AS profile,
-          CASE
-            WHEN instr(p.url, '?') > 0 THEN substr(p.url, 1, instr(p.url, '?') - 1)
-            ELSE p.url
-          END,
+          p.url,
           p.title,
           pr.url AS referrer_url,
           strftime('%Y-%m-%d %H:00:00', h.visit_date/1000000, 'unixepoch') AS visited_dt
@@ -102,10 +97,7 @@ def insert_safari_history(cur: Cursor, alias: str, profile_label: str) -> None:
         SELECT
           'safari' AS browser,
           ?         AS profile,
-          CASE
-            WHEN instr(i.url, '?') > 0 THEN substr(i.url, 1, instr(i.url, '?') - 1)
-            ELSE i.url
-          END,
+          i.url,
           v.title,
           NULL AS referrer_url,
           strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch') AS visited_dt
@@ -135,7 +127,9 @@ def _create_unified_db_connection(dest_db: Path | None) -> Connection:
           url          TEXT NOT NULL,
           title        TEXT,
           referrer_url TEXT,
-          visited_dt  DATETIME NOT NULL
+          visited_dt  DATETIME NOT NULL,
+          domain       TEXT,
+          stripped_qp  TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_bh_time  ON browser_history(visited_dt);
         CREATE INDEX IF NOT EXISTS idx_bh_url   ON browser_history(url);
@@ -143,6 +137,19 @@ def _create_unified_db_connection(dest_db: Path | None) -> Connection:
         """
     )
     return conn
+
+
+def _apply_qp_whitelist(conn: Connection, whitelist: Whitelist) -> None:
+    """Post-process all rows: apply the query-parameter whitelist."""
+    cur = conn.cursor()
+    rows = cur.execute("SELECT rowid, url FROM browser_history").fetchall()
+    for rowid, raw_url in rows:
+        result = process_url(raw_url, whitelist)
+        cur.execute(
+            "UPDATE browser_history SET url = ?, domain = ?, stripped_qp = ? WHERE rowid = ?",
+            (result["url"], result["domain"], result["stripped_qp"], rowid),
+        )
+    conn.commit()
 
 
 def _process_browser_sources(conn: Connection, sources: Iterable[tuple[BrowserType, Path]]) -> None:
@@ -174,20 +181,26 @@ def _process_browser_sources(conn: Connection, sources: Iterable[tuple[BrowserTy
 
 
 def build_unified_browser_history_db(
-    dest_db: Path | None, sources: Iterable[tuple[BrowserType, Path]]
+    dest_db: Path | None,
+    sources: Iterable[tuple[BrowserType, Path]],
+    whitelist: Whitelist | None = None,
 ) -> Connection:
     conn = _create_unified_db_connection(dest_db)
     _process_browser_sources(conn, sources)
+    _apply_qp_whitelist(conn, whitelist if whitelist is not None else {})
     return conn
 
 
-def get_or_create_unified_db(sources: Iterable[tuple[BrowserType, Path]]) -> Connection:
+def get_or_create_unified_db(
+    sources: Iterable[tuple[BrowserType, Path]],
+    whitelist: Whitelist | None = None,
+) -> Connection:
     global _UNIFIED_DB_CONN
     if _UNIFIED_DB_CONN is not None:
         return _UNIFIED_DB_CONN
 
     # Use in-memory database by default
-    conn = build_unified_browser_history_db(None, sources)
+    conn = build_unified_browser_history_db(None, sources, whitelist)
     _UNIFIED_DB_CONN = conn
     return conn
 
@@ -212,3 +225,12 @@ def run_unified_query(
 ) -> list[Any]:
     cur = conn.execute(sql, params or {})
     return cur.fetchmany(max_rows)
+
+
+def run_unified_query_with_headers(
+    conn: Connection, sql: str, params: dict[str, object] | None = None, max_rows: int = 100
+) -> tuple[list[str], list[Any]]:
+    """Like :func:`run_unified_query` but also returns column headers."""
+    cur = conn.execute(sql, params or {})
+    headers = [desc[0] for desc in cur.description] if cur.description else []
+    return headers, cur.fetchmany(max_rows)

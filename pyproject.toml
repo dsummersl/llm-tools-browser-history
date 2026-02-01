@@ -15,6 +15,7 @@ dependencies = [
     "click>=8.3.1",
     "llm>=0.27.1",
     "mcp>=1.0.0",
+    "pyyaml>=6.0",
 ]
 
 [project.entry-points.llm]
@@ -32,6 +33,7 @@ dev = [
   "pre-commit>=3.7",
   "treepeat>=0.1.0",
   "radon>=6.0.1",
+  "types-PyYAML>=6.0",
 ]
 
 [tool.ruff]

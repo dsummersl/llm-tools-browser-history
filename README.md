@@ -35,9 +35,47 @@ Once configured, you can use the `browser_history` tool in conversations with Cl
 
 Note that the CLI supports additional options as needed:
 
-
 ```sh
 browser-history-mcp --help
+```
+
+### Query Parameter Whitelist
+
+By default, query parameters are stripped from URLs to protect sensitive data (session IDs, auth tokens, etc.). A built-in whitelist preserves useful parameters like search terms and video IDs for well-known domains (Google `q`, YouTube `v`, etc.).
+
+To supply your own whitelist, create a YAML file mapping domains to allowed parameter keys:
+
+```yaml
+# my-whitelist.yaml
+google.com:
+  - q
+  - tbm
+youtube.com:
+  - v
+  - t
+amazon.com:
+  - k
+  - field-keywords
+github.com:
+  - q
+```
+
+Then pass it via `--qp-whitelist`:
+
+```sh
+browser-history-mcp --qp-whitelist my-whitelist.yaml
+```
+
+Domain matching walks up subdomains: a URL on `images.google.com` will match the `google.com` rule if no `images.google.com` rule exists. Domains not in the whitelist have all query parameters stripped (the previous default behaviour).
+
+The database schema includes a `stripped_qp` column that records the names (never values) of removed parameters, and a `domain` column for the URL's domain.
+
+### Debugging with --query
+
+Use `--query` to run a single SQL query, print results, and exit without starting the MCP server:
+
+```sh
+browser-history-mcp --query "SELECT url, title, domain, stripped_qp FROM browser_history LIMIT 5"
 ```
 
 
@@ -88,7 +126,7 @@ See [the lethal trifecta article](https://simonw.substack.com/p/the-lethal-trife
 To mitigate the risks of data leakage:
 - Only runs queries against a copy of the target browser's history database (so any malicious modification has no effect).
 - Limits the number of results to no more than 100 records per tool use.
-- Does not return the entire browser history record. This tool will return a subset of fields (URL, title, visit date). Query parameters are stripped from URLs and timestamps only include the date (not the time).
+- Does not return the entire browser history record. This tool will return a subset of fields (URL, title, visit date). Query parameters are filtered by a configurable whitelist (only safe keys like search terms are preserved; all others are stripped). Timestamps only include the date (not the time).
 
 ## Dev setup
 
