@@ -116,11 +116,58 @@ def test_cli_query_error():
         assert "Error: bad sql" in result.output
 
 
-def test_format_table():
-    output = _format_table(["a", "bb"], [("x", "yy"), ("zz", "w")])
+def test_format_table_basic():
+    output = _format_table(["name", "val"], [("alice", 1), ("bob", 2)])
     lines = output.split("\n")
-    assert lines[0].startswith("a ")
-    assert "bb" in lines[0]
-    assert "---" in lines[1] or "--" in lines[1]
-    assert "x " in lines[2]
-    assert "zz" in lines[3]
+    assert len(lines) == 4  # header + separator + 2 data rows
+    assert lines[0] == "name   val"
+    assert lines[1] == "-----  ---"
+    assert lines[2] == "alice  1  "
+    assert lines[3] == "bob    2  "
+
+
+def test_format_table_columns_widen_for_data():
+    output = _format_table(["a", "b"], [("longvalue", "x")])
+    lines = output.split("\n")
+    # Column 'a' should widen to fit 'longvalue' (9 chars)
+    assert lines[0] == "a          b"
+    assert lines[1] == "---------  -"
+    assert lines[2] == "longvalue  x"
+
+
+def test_format_table_none_values():
+    output = _format_table(["col"], [(None,), ("ok",)])
+    lines = output.split("\n")
+    assert lines[2].strip() == ""  # None renders as empty string
+    assert lines[3].strip() == "ok"
+
+
+def test_format_table_single_row():
+    output = _format_table(["id"], [("only",)])
+    lines = output.split("\n")
+    assert len(lines) == 3  # header + separator + 1 data row
+    assert lines[0] == "id  "
+    assert lines[1] == "----"
+    assert lines[2] == "only"
+
+
+def test_cli_query_single_row_says_row_not_rows():
+    runner = CliRunner()
+    with (
+        patch("browser_history.mcp_server.BrowserHistory") as mock_bh_cls,
+        patch("browser_history.mcp_server.load_whitelist", return_value={}),
+        patch("browser_history.mcp_server.get_or_create_unified_db") as mock_get_db,
+        patch("browser_history.mcp_server.run_unified_query_with_headers") as mock_query,
+        patch("browser_history.mcp_server.cleanup_unified_db"),
+    ):
+        mock_bh = MagicMock()
+        mock_bh.sources = []
+        mock_bh_cls.return_value = mock_bh
+        mock_get_db.return_value = MagicMock()
+        mock_query.return_value = (["x"], [("one",)])
+
+        result = runner.invoke(cli, ["--query", "SELECT 1"])
+
+        assert result.exit_code == 0
+        assert "(1 row)" in result.output
+        assert "(1 rows)" not in result.output
