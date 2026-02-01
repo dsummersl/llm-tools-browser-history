@@ -1,6 +1,8 @@
 import logging
+import importlib.metadata
 import click
 import atexit
+from pathlib import Path
 from typing import Any, Iterable, get_args
 
 from mcp.server.fastmcp import FastMCP
@@ -8,6 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from .browser_types import BrowserType
 from .toolbox import BrowserHistory
 from .sqlite import cleanup_unified_db
+from .qp_whitelist import load_whitelist, Whitelist
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +23,18 @@ LOG_LEVELS = {
 }
 
 
-def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
+def get_version() -> str:
+    try:
+        return importlib.metadata.version("llm-tools-browser-history")
+    except importlib.metadata.PackageNotFoundError:
+        return "0.0.0-dev"
+
+
+def make_mcp(sources: Iterable[str], max_rows: int, whitelist: Whitelist | None = None) -> FastMCP:
     mcp = FastMCP("browser-history", stateless_http=True, json_response=True)
 
     # Pass sources and max_rows to BrowserHistory
-    browser_history = BrowserHistory(sources, max_rows)
+    browser_history = BrowserHistory(sources, max_rows, whitelist=whitelist)
 
     @mcp.tool(description=browser_history.search.__doc__)
     def search(sql: str) -> list[Any]:
@@ -34,6 +44,7 @@ def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
 
 
 @click.command()
+@click.version_option(version=get_version(), prog_name="browser-history-mcp")
 @click.option(
     "--transport",
     type=click.Choice(["stdio", "sse", "streamable-http"]),
@@ -62,10 +73,42 @@ def make_mcp(sources: Iterable[str], max_rows: int) -> FastMCP:
     show_default=True,
     help="Set the logging level",
 )
-def cli(transport, sources, max_rows, log_level) -> None:  # type: ignore
+@click.option(
+    "--qp-whitelist",
+    "qp_whitelist_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Path to a YAML file mapping domains to allowed query-parameter keys. "
+    "When omitted the built-in default whitelist is used.",
+)
+@click.option(
+    "--query",
+    "single_query",
+    type=str,
+    default=None,
+    help="Execute a single SQL query against the browser history, print results, and exit.",
+)
+def cli(  # type: ignore
+    transport: str,
+    sources: tuple[str, ...],
+    max_rows: int,
+    log_level: str,
+    qp_whitelist_path: Path | None,
+    single_query: str | None,
+) -> None:
     logging.basicConfig(level=LOG_LEVELS[log_level])
+
+    whitelist = load_whitelist(qp_whitelist_path)
+
+    if single_query is not None:
+        browser_history = BrowserHistory(sources or None, max_rows, whitelist=whitelist)
+        result = browser_history.search(single_query)
+        click.echo(result)
+        cleanup_unified_db()
+        return
+
     atexit.register(cleanup_unified_db)
-    make_mcp(sources, max_rows).run(transport=transport)
+    make_mcp(sources, max_rows, whitelist=whitelist).run(transport=transport)
 
 
 if __name__ == "__main__":

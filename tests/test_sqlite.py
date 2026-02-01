@@ -35,7 +35,7 @@ def test_copy_locked_db_creates_distinct_copy():
 
 
 def test_build_unified_browser_history_db():
-    # Test with in-memory database (default)
+    # Test with in-memory database (default) and no whitelist (strip all)
     conn = build_unified_browser_history_db(
         None,
         [
@@ -47,7 +47,8 @@ def test_build_unified_browser_history_db():
 
     cur = conn.cursor()
     rows = cur.execute(
-        "SELECT browser, profile, url, title, referrer_url, visited_dt FROM browser_history ORDER BY browser"
+        "SELECT browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp "
+        "FROM browser_history ORDER BY browser"
     ).fetchall()
     conn.close()
 
@@ -64,7 +65,8 @@ def test_build_unified_browser_history_db():
     firefox_profile = sha_label("firefox", firefox_db)
     safari_profile = sha_label("safari", safari_db)
 
-    assert out["chrome"] == (
+    # url, title, referrer_url, visited_dt should match; domain & stripped_qp are new
+    assert out["chrome"][0:6] == (
         "chrome",
         chrome_profile,
         "https://example.com/",
@@ -72,7 +74,10 @@ def test_build_unified_browser_history_db():
         None,
         ch_hour,
     )
-    assert out["firefox"] == (
+    # domain should be populated
+    assert out["chrome"][6] == "example.com"
+
+    assert out["firefox"][0:6] == (
         "firefox",
         firefox_profile,
         "https://news.ycombinator.com/",
@@ -80,7 +85,9 @@ def test_build_unified_browser_history_db():
         None,
         ff_hour,
     )
-    assert out["safari"] == (
+    assert out["firefox"][6] == "news.ycombinator.com"
+
+    assert out["safari"][0:6] == (
         "safari",
         safari_profile,
         "https://www.apple.com/",
@@ -88,6 +95,27 @@ def test_build_unified_browser_history_db():
         None,
         sf_hour,
     )
+    assert out["safari"][6] == "www.apple.com"
+
+
+def test_build_unified_browser_history_db_with_whitelist():
+    """When a whitelist is provided, matching params are preserved."""
+    whitelist = {"example.com": ["keep"]}
+    conn = build_unified_browser_history_db(
+        None,
+        [("chrome", chrome_db)],
+        whitelist=whitelist,
+    )
+
+    rows = run_unified_query(
+        conn,
+        "SELECT url, domain, stripped_qp FROM browser_history ORDER BY url",
+    )
+    conn.close()
+
+    # The fixture URLs don't have query params, so nothing to strip/keep
+    for row in rows:
+        assert row[1] is not None  # domain populated
 
 
 def test_run_unified_query_counts_rows():
