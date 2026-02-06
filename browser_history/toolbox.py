@@ -24,10 +24,12 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
         sources: Iterable[str] | None = None,
         max_rows: int = 100,
         whitelist: Whitelist | None = None,
+        db_path: pathlib.Path | None = None,
     ):
         self.sources: list[tuple[BrowserType, str, pathlib.Path]] = []
         self.max_rows = max_rows
         self.whitelist = whitelist if whitelist is not None else load_whitelist(None)
+        self.db_path = db_path
 
         if not sources:
             sources = get_args(BrowserType)
@@ -49,7 +51,9 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
 
     def _do_search(self, sql: str) -> list[Sequence[Any]]:
         logger.debug("Building unified browser history database...")
-        unified_db = get_or_create_unified_db(self.sources, whitelist=self.whitelist)
+        unified_db = get_or_create_unified_db(
+            self.sources, whitelist=self.whitelist, db_path=self.db_path
+        )
         return run_unified_query(unified_db, sql, {}, self.max_rows)
 
     def search(self, sql: str) -> str:

@@ -34,7 +34,7 @@ def make_mcp(sources: Iterable[str], max_rows: int, whitelist: Whitelist | None 
     mcp = FastMCP("browser-history", stateless_http=True, json_response=True)
 
     # Pass sources and max_rows to BrowserHistory
-    browser_history = BrowserHistory(sources, max_rows, whitelist=whitelist)
+    browser_history = BrowserHistory(sources, max_rows, whitelist=whitelist, db_path=None)
 
     @mcp.tool(description=browser_history.search.__doc__)
     def search(sql: str) -> list[Any]:
@@ -76,8 +76,8 @@ def _run_single_query(
 ) -> None:
     """Execute a single SQL query, print a human-readable table, then exit."""
     try:
-        bh = BrowserHistory(sources or None, max_rows, whitelist=whitelist)
-        conn = get_or_create_unified_db(bh.sources, whitelist=whitelist)
+        bh = BrowserHistory(sources or None, max_rows, whitelist=whitelist, db_path=None)
+        conn = get_or_create_unified_db(bh.sources, whitelist=whitelist, db_path=None)
         headers, rows = run_unified_query_with_headers(conn, sql, max_rows=max_rows)
     except Exception as exc:
         click.echo(f"Error: {exc}", err=True)
