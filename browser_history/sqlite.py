@@ -1,17 +1,20 @@
-from sqlite3 import Cursor, Connection, connect
+import hashlib
 import logging
-from collections.abc import Generator
+import os
+import pathlib
+import shutil
+import tempfile
+from collections.abc import Callable, Generator, Iterable
 from contextlib import contextmanager
 from pathlib import Path
-import pathlib
-import tempfile
-import shutil
-import hashlib
-import os
+from sqlite3 import Connection, Cursor, connect
 from typing import Any
-from collections.abc import Callable, Iterable
+
 from .browser_types import BrowserType
-from .qp_whitelist import Whitelist, ProcessedURL, process_url
+from .chrome import get_chrome_history_query
+from .firefox import get_firefox_history_query
+from .qp_whitelist import ProcessedURL, Whitelist, process_url
+from .safari import get_safari_history_query
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +49,8 @@ def _should_process_source(
     """
     cur.execute(
         """
-        SELECT sha256_hash, last_modified 
-        FROM browser_metadata 
+        SELECT sha256_hash, last_modified
+        FROM browser_metadata
         WHERE browser = ? AND profile = ?
         """,
         (browser, profile),
@@ -82,7 +85,7 @@ def _update_metadata(
     """Update metadata for a processed browser source."""
     cur.execute(
         """
-        INSERT OR REPLACE INTO browser_metadata 
+        INSERT OR REPLACE INTO browser_metadata
         (browser, profile, source_path, sha256_hash, last_modified, processed_at)
         VALUES (?, ?, ?, ?, ?, datetime('now'))
         """,
@@ -119,90 +122,24 @@ def copy_locked_db(path: pathlib.Path) -> pathlib.Path:
 _UNIFIED_DB_CONN: Connection | None = None
 
 
-def _execute_sql(sql: str, cur: Cursor, params: tuple[str, ...] = ()) -> None:
-    cur.execute(sql, params)
+def insert_selected_records(cur: Cursor, select_query: str) -> None:
+    """Insert records using a SELECT query into browser_history table.
 
-
-def insert_chrome_history(cur: Cursor, alias: str, profile_label: str) -> None:
-    """Insert Chrome browser history into the unified database."""
-    _execute_sql(
-        (
-            """
-        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp, referrer_domain, referrer_stripped_qp)
-        SELECT
-          'chrome' AS browser,
-          ?         AS profile,
-          process_url_url(u.url) AS url,
-          u.title,
-          process_url_url(r.url) AS referrer_url,
-          strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt,
-          process_url_domain(u.url) AS domain,
-          process_url_stripped(u.url) AS stripped_qp,
-          process_url_domain(r.url) AS referrer_domain,
-          process_url_stripped(r.url) AS referrer_stripped_qp
-        FROM {alias}.urls u
-        JOIN {alias}.visits v       ON v.url = u.id
-        LEFT JOIN {alias}.visits pv ON pv.id = v.from_visit
-        LEFT JOIN {alias}.urls  r   ON r.id = pv.url;
+    The select_query should return columns matching the browser_history table schema:
+    (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp,
+     referrer_domain, referrer_stripped_qp)
+    """
+    full_query = f"""
+        INSERT INTO browser_history
+        (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp,
+         referrer_domain, referrer_stripped_qp)
+        {select_query}
         """
-        ).replace("{alias}", alias),
-        cur,
-        (profile_label,),
-    )
 
-
-def insert_firefox_history(cur: Cursor, alias: str, profile_label: str) -> None:
-    """Insert Firefox browser history into the unified database."""
-    _execute_sql(
-        (
-            """
-        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp, referrer_domain, referrer_stripped_qp)
-        SELECT
-          'firefox' AS browser,
-          ?          AS profile,
-          process_url_url(p.url) AS url,
-          p.title,
-          process_url_url(pr.url) AS referrer_url,
-          strftime('%Y-%m-%d %H:00:00', h.visit_date/1000000, 'unixepoch') AS visited_dt,
-          process_url_domain(p.url) AS domain,
-          process_url_stripped(p.url) AS stripped_qp,
-          process_url_domain(pr.url) AS referrer_domain,
-          process_url_stripped(pr.url) AS referrer_stripped_qp
-        FROM {alias}.moz_historyvisits h
-        JOIN {alias}.moz_places p         ON p.id = h.place_id
-        LEFT JOIN {alias}.moz_historyvisits ph ON ph.id = h.from_visit
-        LEFT JOIN {alias}.moz_places pr    ON pr.id = ph.place_id;
-        """
-        ).replace("{alias}", alias),
-        cur,
-        (profile_label,),
-    )
-
-
-def insert_safari_history(cur: Cursor, alias: str, profile_label: str) -> None:
-    """Insert Safari browser history into the unified database."""
-    _execute_sql(
-        (
-            """
-        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp, referrer_domain, referrer_stripped_qp)
-        SELECT
-          'safari' AS browser,
-          ?         AS profile,
-          process_url_url(i.url) AS url,
-          v.title,
-          NULL AS referrer_url,
-          strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch') AS visited_dt,
-          process_url_domain(i.url) AS domain,
-          process_url_stripped(i.url) AS stripped_qp,
-          NULL AS referrer_domain,
-          NULL AS referrer_stripped_qp
-        FROM {alias}.history_items i
-        LEFT JOIN {alias}.history_visits v ON v.history_item = i.id;
-        """
-        ).replace("{alias}", alias),
-        cur,
-        (profile_label,),
-    )
+    # Execute the query and get row count
+    cur.execute(full_query)
+    rowcount = cur.rowcount
+    logger.debug(f"Query inserted {rowcount} records")
 
 
 def _register_sqlite_functions(conn: Connection, whitelist: Whitelist) -> None:
@@ -329,9 +266,15 @@ def _process_browser_sources(
     alias_num = 0
 
     browser_inserters: dict[BrowserType, Callable[[Cursor, str, str], None]] = {
-        "chrome": insert_chrome_history,
-        "firefox": insert_firefox_history,
-        "safari": insert_safari_history,
+        "chrome": lambda cur, alias, profile_label: insert_selected_records(
+            cur, get_chrome_history_query(alias, profile_label)
+        ),
+        "firefox": lambda cur, alias, profile_label: insert_selected_records(
+            cur, get_firefox_history_query(alias, profile_label)
+        ),
+        "safari": lambda cur, alias, profile_label: insert_selected_records(
+            cur, get_safari_history_query(alias, profile_label)
+        ),
     }
 
     # Group sources by browser and profile

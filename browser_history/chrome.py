@@ -24,3 +24,29 @@ def find_chrome_history_paths() -> list[tuple[str, pathlib.Path]]:
             logger.debug(f"Found Chrome history at: {path} (profile: {profile_name})")
             candidates.append((profile_name, path))
     return candidates
+
+
+def get_chrome_history_query(alias: str, profile_label: str) -> str:
+    """Generate SELECT query for Chrome browser history.
+
+    Returns just the SELECT portion (without INSERT INTO) that can be used
+    with insert_selected_records.
+    """
+    query = f"""
+        SELECT
+          'chrome' AS browser,
+          '{profile_label}' AS profile,
+          process_url_url(u.url) AS url,
+          u.title,
+          process_url_url(r.url) AS referrer_url,
+          strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt,
+          process_url_domain(u.url) AS domain,
+          process_url_stripped(u.url) AS stripped_qp,
+          process_url_domain(r.url) AS referrer_domain,
+          process_url_stripped(r.url) AS referrer_stripped_qp
+        FROM {alias}.urls u
+        JOIN {alias}.visits v       ON v.url = u.id
+        LEFT JOIN {alias}.visits pv ON pv.id = v.from_visit
+        LEFT JOIN {alias}.urls  r   ON r.id = pv.url
+        """
+    return query

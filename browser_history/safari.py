@@ -52,3 +52,27 @@ def find_safari_history_paths() -> list[tuple[str, pathlib.Path]]:
     deduped_paths = _deduplicate_paths(candidates)
     # Safari doesn't have profiles in the same way, use "default" as profile name
     return [("default", path) for path in deduped_paths]
+
+
+def get_safari_history_query(alias: str, profile_label: str) -> str:
+    """Generate SELECT query for Safari browser history.
+
+    Returns just the SELECT portion (without INSERT INTO) that can be used
+    with insert_selected_records.
+    """
+    query = f"""
+        SELECT
+          'safari' AS browser,
+          '{profile_label}' AS profile,
+          process_url_url(i.url) AS url,
+          v.title,
+          NULL AS referrer_url,
+          strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch') AS visited_dt,
+          process_url_domain(i.url) AS domain,
+          process_url_stripped(i.url) AS stripped_qp,
+          NULL AS referrer_domain,
+          NULL AS referrer_stripped_qp
+        FROM {alias}.history_items i
+        LEFT JOIN {alias}.history_visits v ON v.history_item = i.id
+        """
+    return query
