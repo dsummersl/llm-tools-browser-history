@@ -15,13 +15,11 @@ safari_db = fixture_path / "safari-places.db"
 
 
 def test_sha_label_is_deterministic():
-    p = fixture_path / "db.sqlite"
-    p.write_text("x")
-    a = sha_label("chrome", p)
-    b = sha_label("chrome", p)
+    a = sha_label("chrome", "Default")
+    b = sha_label("chrome", "Default")
     assert a == b
     assert a.startswith("chrome:")
-    assert len(a.split(":")[1]) == 10
+    assert a == "chrome:Default"
 
 
 def test_copy_locked_db_creates_distinct_copy():
@@ -40,9 +38,9 @@ def test_build_unified_browser_history_db():
     conn = build_unified_browser_history_db(
         None,
         [
-            ("chrome", chrome_db),
-            ("firefox", firefox_db),
-            ("safari", safari_db),
+            ("chrome", "Default", chrome_db),
+            ("firefox", "default-release", firefox_db),
+            ("safari", "default", safari_db),
         ],
     )
 
@@ -62,9 +60,9 @@ def test_build_unified_browser_history_db():
     # Map by browser for easier asserts
     out = {r[0]: r for r in rows}
 
-    chrome_profile = sha_label("chrome", chrome_db)
-    firefox_profile = sha_label("firefox", firefox_db)
-    safari_profile = sha_label("safari", safari_db)
+    chrome_profile = sha_label("chrome", "Default")
+    firefox_profile = sha_label("firefox", "default-release")
+    safari_profile = sha_label("safari", "default")
 
     # url, title, referrer_url, visited_dt should match; domain & stripped_qp are new
     assert out["chrome"][0:6] == (
@@ -104,7 +102,7 @@ def test_build_unified_browser_history_db_with_whitelist():
     whitelist = {"example.com": ["keep"]}
     conn = build_unified_browser_history_db(
         None,
-        [("chrome", chrome_db)],
+        [("chrome", "Default", chrome_db)],
         whitelist=whitelist,
     )
 
@@ -120,7 +118,7 @@ def test_build_unified_browser_history_db_with_whitelist():
 
 
 def test_run_unified_query_counts_rows():
-    conn = build_unified_browser_history_db(None, [("chrome", chrome_db)])
+    conn = build_unified_browser_history_db(None, [("chrome", "Default", chrome_db)])
 
     rows = run_unified_query(conn, "SELECT COUNT(*) FROM browser_history")
     assert rows[0][0] == 2
@@ -130,7 +128,7 @@ def test_run_unified_query_counts_rows():
 def test_build_unified_browser_history_db_with_file():
     # Test with file-based database
     dest = fixture_path / "unified_file.sqlite"
-    conn = build_unified_browser_history_db(dest, [("chrome", chrome_db)])
+    conn = build_unified_browser_history_db(dest, [("chrome", "Default", chrome_db)])
 
     assert dest.exists()
 

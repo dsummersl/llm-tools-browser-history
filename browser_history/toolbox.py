@@ -15,6 +15,7 @@ from .qp_whitelist import Whitelist, load_whitelist
 
 logger = logging.getLogger(__name__)
 
+
 class BrowserHistory(llm.Toolbox):  # type: ignore
     """Toolbox allowing search through browser history."""
 
@@ -24,7 +25,7 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
         max_rows: int = 100,
         whitelist: Whitelist | None = None,
     ):
-        self.sources: list[tuple[BrowserType, pathlib.Path]] = []
+        self.sources: list[tuple[BrowserType, str, pathlib.Path]] = []
         self.max_rows = max_rows
         self.whitelist = whitelist if whitelist is not None else load_whitelist(None)
 
@@ -35,7 +36,7 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
 
     def _initialize_sources(self, sources: Iterable[str]) -> None:
         """Initialize browser history sources."""
-        browser_finders: dict[BrowserType, Callable[[], list[pathlib.Path]]] = {
+        browser_finders: dict[BrowserType, Callable[[], list[tuple[str, pathlib.Path]]]] = {
             "firefox": find_firefox_places_sqlite,
             "chrome": find_chrome_history_paths,
             "safari": find_safari_history_paths,
@@ -43,8 +44,8 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
 
         for browser_name, finder_func in browser_finders.items():
             if browser_name in sources:
-                for p in finder_func():
-                    self.sources.append((browser_name, p))
+                for profile_name, path in finder_func():
+                    self.sources.append((browser_name, profile_name, path))
 
     def _do_search(self, sql: str) -> list[Sequence[Any]]:
         logger.debug("Building unified browser history database...")

@@ -43,10 +43,12 @@ def _gather_safari_history_candidates() -> list[pathlib.Path]:
     return candidates
 
 
-def find_safari_history_paths() -> list[pathlib.Path]:
+def find_safari_history_paths() -> list[tuple[str, pathlib.Path]]:
     """Return list of Safari History.db paths on this system.
 
     Currently supports macOS default location under ~/Library/Safari/History.db.
     """
     candidates = _gather_safari_history_candidates()
-    return _deduplicate_paths(candidates)
+    deduped_paths = _deduplicate_paths(candidates)
+    # Safari doesn't have profiles in the same way, use "default" as profile name
+    return [("default", path) for path in deduped_paths]

@@ -6,7 +6,6 @@ from pathlib import Path
 import pathlib
 import tempfile
 import shutil
-import hashlib
 from typing import Any
 from collections.abc import Callable, Iterable
 from .browser_types import BrowserType
@@ -44,9 +43,8 @@ def copy_locked_db(path: pathlib.Path) -> pathlib.Path:
 _UNIFIED_DB_CONN: Connection | None = None
 
 
-def sha_label(browser: str, path: Path) -> str:
-    h = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:10]
-    return f"{browser}:{h}"
+def sha_label(browser: str, profile_name: str) -> str:
+    return f"{browser}:{profile_name}"
 
 
 def _execute_sql(sql: str, cur: Cursor, params: tuple[str, ...] = ()) -> None:
@@ -245,7 +243,9 @@ def _create_unified_db_connection(dest_db: Path | None, whitelist: Whitelist) ->
     return conn
 
 
-def _process_browser_sources(conn: Connection, sources: Iterable[tuple[BrowserType, Path]]) -> None:
+def _process_browser_sources(
+    conn: Connection, sources: Iterable[tuple[BrowserType, str, Path]]
+) -> None:
     """Process and import browser history from all sources."""
     cur = conn.cursor()
     alias_num = 0
@@ -256,16 +256,24 @@ def _process_browser_sources(conn: Connection, sources: Iterable[tuple[BrowserTy
         "safari": insert_safari_history,
     }
 
-    with copy_locked_dbs([path for _, path in sources]) as locked_copies:
+    with copy_locked_dbs([path for _, _, path in sources]) as locked_copies:
         for og_path, copy_path in locked_copies:
-            browser: BrowserType = next(browser for browser, path in sources if path == og_path)
+            # Find the browser and profile name for this path
+            browser: BrowserType = next(
+                browser for browser, profile_name, path in sources if path == og_path
+            )
+            profile_name: str = next(
+                profile_name for browser, profile_name, path in sources if path == og_path
+            )
             alias_num += 1
-            logger.debug(f"Processing {browser} history from {og_path} (copy at {copy_path})")
+            logger.debug(
+                f"Processing {browser} history from {og_path} (profile: {profile_name}, copy at {copy_path})"
+            )
 
             alias = f"src{alias_num}"
             cur.execute("ATTACH DATABASE ? AS " + alias, (f"file:{copy_path}?immutable=1&mode=ro",))
 
-            profile_label = sha_label(browser, og_path)
+            profile_label = sha_label(browser, profile_name)
 
             inserter = browser_inserters[browser]
             inserter(cur, alias, profile_label)
@@ -276,7 +284,7 @@ def _process_browser_sources(conn: Connection, sources: Iterable[tuple[BrowserTy
 
 def build_unified_browser_history_db(
     dest_db: Path | None,
-    sources: Iterable[tuple[BrowserType, Path]],
+    sources: Iterable[tuple[BrowserType, str, Path]],
     whitelist: Whitelist | None = None,
 ) -> Connection:
     conn = _create_unified_db_connection(dest_db, whitelist if whitelist is not None else {})
@@ -285,7 +293,7 @@ def build_unified_browser_history_db(
 
 
 def get_or_create_unified_db(
-    sources: Iterable[tuple[BrowserType, Path]],
+    sources: Iterable[tuple[BrowserType, str, Path]],
     whitelist: Whitelist | None = None,
 ) -> Connection:
     global _UNIFIED_DB_CONN
