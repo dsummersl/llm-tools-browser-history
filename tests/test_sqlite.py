@@ -2,7 +2,6 @@ from __future__ import annotations
 import sqlite3
 
 from browser_history.sqlite import copy_locked_db
-from browser_history.sqlite import sha_label
 from browser_history.sqlite import build_unified_browser_history_db
 from browser_history.sqlite import run_unified_query
 
@@ -12,14 +11,6 @@ fixture_path = Path(__file__).parent / "fixtures"
 chrome_db = fixture_path / "chrome-places.db"
 firefox_db = fixture_path / "firefox-places.db"
 safari_db = fixture_path / "safari-places.db"
-
-
-def test_sha_label_is_deterministic():
-    a = sha_label("chrome", "Default")
-    b = sha_label("chrome", "Default")
-    assert a == b
-    assert a.startswith("chrome:")
-    assert a == "chrome:Default"
 
 
 def test_copy_locked_db_creates_distinct_copy():
@@ -60,9 +51,9 @@ def test_build_unified_browser_history_db():
     # Map by browser for easier asserts
     out = {r[0]: r for r in rows}
 
-    chrome_profile = sha_label("chrome", "Default")
-    firefox_profile = sha_label("firefox", "default-release")
-    safari_profile = sha_label("safari", "default")
+    chrome_profile = "chrome:Default"
+    firefox_profile = "firefox:default-release"
+    safari_profile = "safari:default"
 
     # url, title, referrer_url, visited_dt should match; domain & stripped_qp are new
     assert out["chrome"][0:6] == (

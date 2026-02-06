@@ -43,16 +43,40 @@ def copy_locked_db(path: pathlib.Path) -> pathlib.Path:
 _UNIFIED_DB_CONN: Connection | None = None
 
 
-def sha_label(browser: str, profile_name: str) -> str:
-    return f"{browser}:{profile_name}"
-
-
 def _execute_sql(sql: str, cur: Cursor, params: tuple[str, ...] = ()) -> None:
     cur.execute(sql, params)
 
 
 def insert_chrome_history(cur: Cursor, alias: str, profile_label: str) -> None:
     """Insert Chrome browser history into the unified database."""
+    if profile_label == 'chrome:Profile 2':
+        _execute_sql(
+            (
+                """
+            SELECT
+            'chrome' AS browser,
+            ?         AS profile,
+            process_url_url(u.url) AS url,
+            u.title,
+            process_url_url(r.url) AS referrer_url,
+            strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt,
+            process_url_domain(u.url) AS domain,
+            process_url_stripped(u.url) AS stripped_qp,
+            process_url_domain(r.url) AS referrer_domain,
+            process_url_stripped(r.url) AS referrer_stripped_qp
+            FROM {alias}.urls u
+            JOIN {alias}.visits v       ON v.url = u.id
+            LEFT JOIN {alias}.visits pv ON pv.id = v.from_visit
+            LEFT JOIN {alias}.urls  r   ON r.id = pv.url;
+            """
+            ).replace("{alias}", alias),
+            cur,
+            (profile_label,),
+        )
+        d = cur.fetchall()
+        logger.debug("Profile 2 data: %s", len(d))
+        import pdb; pdb.set_trace()
+
     _execute_sql(
         (
             """
@@ -273,7 +297,7 @@ def _process_browser_sources(
             alias = f"src{alias_num}"
             cur.execute("ATTACH DATABASE ? AS " + alias, (f"file:{copy_path}?immutable=1&mode=ro",))
 
-            profile_label = sha_label(browser, profile_name)
+            profile_label = f"{browser}:{profile_name}"
 
             inserter = browser_inserters[browser]
             inserter(cur, alias, profile_label)
