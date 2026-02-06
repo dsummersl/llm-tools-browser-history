@@ -3,6 +3,7 @@ import pathlib
 import llm
 from collections.abc import Callable, Iterable
 from typing import Any, Sequence, get_args
+import logging
 
 
 from .firefox import find_firefox_places_sqlite
@@ -12,6 +13,7 @@ from .browser_types import BrowserType
 from .sqlite import get_or_create_unified_db, run_unified_query, cleanup_unified_db
 from .qp_whitelist import Whitelist, load_whitelist
 
+logger = logging.getLogger(__name__)
 
 class BrowserHistory(llm.Toolbox):  # type: ignore
     """Toolbox allowing search through browser history."""
@@ -45,6 +47,7 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
                     self.sources.append((browser_name, p))
 
     def _do_search(self, sql: str) -> list[Sequence[Any]]:
+        logger.debug("Building unified browser history database...")
         unified_db = get_or_create_unified_db(self.sources, whitelist=self.whitelist)
         return run_unified_query(unified_db, sql, {}, self.max_rows)
 

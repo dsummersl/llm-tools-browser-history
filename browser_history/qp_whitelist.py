@@ -42,7 +42,8 @@ def _read_yaml(path: Path | None) -> Whitelist:
     """
     if path is not None:
         text = path.read_text(encoding="utf-8")
-        return yaml.safe_load(text)
+        data: object = yaml.safe_load(text)
+        return _validate_whitelist(data)
     else:
         return default_query_param_whitelist
 

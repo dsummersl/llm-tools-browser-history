@@ -10,7 +10,7 @@ import hashlib
 from typing import Any
 from collections.abc import Callable, Iterable
 from .browser_types import BrowserType
-from .qp_whitelist import Whitelist, process_url
+from .qp_whitelist import Whitelist, ProcessedURL, process_url
 
 logger = logging.getLogger(__name__)
 
@@ -58,14 +58,18 @@ def insert_chrome_history(cur: Cursor, alias: str, profile_label: str) -> None:
     _execute_sql(
         (
             """
-        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
+        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp, referrer_domain, referrer_stripped_qp)
         SELECT
           'chrome' AS browser,
           ?         AS profile,
-          u.url,
+          process_url_url(u.url) AS url,
           u.title,
-          r.url AS referrer_url,
-          strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt
+          process_url_url(r.url) AS referrer_url,
+          strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt,
+          process_url_domain(u.url) AS domain,
+          process_url_stripped(u.url) AS stripped_qp,
+          process_url_domain(r.url) AS referrer_domain,
+          process_url_stripped(r.url) AS referrer_stripped_qp
         FROM {alias}.urls u
         JOIN {alias}.visits v       ON v.url = u.id
         LEFT JOIN {alias}.visits pv ON pv.id = v.from_visit
@@ -82,14 +86,18 @@ def insert_firefox_history(cur: Cursor, alias: str, profile_label: str) -> None:
     _execute_sql(
         (
             """
-        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
+        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp, referrer_domain, referrer_stripped_qp)
         SELECT
           'firefox' AS browser,
           ?          AS profile,
-          p.url,
+          process_url_url(p.url) AS url,
           p.title,
-          pr.url AS referrer_url,
-          strftime('%Y-%m-%d %H:00:00', h.visit_date/1000000, 'unixepoch') AS visited_dt
+          process_url_url(pr.url) AS referrer_url,
+          strftime('%Y-%m-%d %H:00:00', h.visit_date/1000000, 'unixepoch') AS visited_dt,
+          process_url_domain(p.url) AS domain,
+          process_url_stripped(p.url) AS stripped_qp,
+          process_url_domain(pr.url) AS referrer_domain,
+          process_url_stripped(pr.url) AS referrer_stripped_qp
         FROM {alias}.moz_historyvisits h
         JOIN {alias}.moz_places p         ON p.id = h.place_id
         LEFT JOIN {alias}.moz_historyvisits ph ON ph.id = h.from_visit
@@ -106,14 +114,18 @@ def insert_safari_history(cur: Cursor, alias: str, profile_label: str) -> None:
     _execute_sql(
         (
             """
-        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt)
+        INSERT INTO browser_history (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp, referrer_domain, referrer_stripped_qp)
         SELECT
           'safari' AS browser,
           ?         AS profile,
-          i.url,
+          process_url_url(i.url) AS url,
           v.title,
           NULL AS referrer_url,
-          strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch') AS visited_dt
+          strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch') AS visited_dt,
+          process_url_domain(i.url) AS domain,
+          process_url_stripped(i.url) AS stripped_qp,
+          NULL AS referrer_domain,
+          NULL AS referrer_stripped_qp
         FROM {alias}.history_items i
         LEFT JOIN {alias}.history_visits v ON v.history_item = i.id;
         """
@@ -123,14 +135,91 @@ def insert_safari_history(cur: Cursor, alias: str, profile_label: str) -> None:
     )
 
 
-def _create_unified_db_connection(dest_db: Path | None) -> Connection:
+def _register_sqlite_functions(conn: Connection, whitelist: Whitelist) -> None:
+    """Register custom SQLite functions for URL processing with memoization."""
+
+    # Cache for processed URLs
+    _url_cache: dict[str, ProcessedURL] = {}
+
+    def _get_cached_result(raw_url: str) -> ProcessedURL | None:
+        """Get cached result for URL, returns None if not cached."""
+        return _url_cache.get(raw_url)
+
+    def _cache_result(raw_url: str, result: ProcessedURL) -> None:
+        """Cache result for URL."""
+        _url_cache[raw_url] = result
+
+    def process_url_url_only(raw_url: str | None) -> str | None:
+        """SQLite function that returns only the processed URL."""
+        if raw_url is None:
+            return None
+        if not raw_url:
+            return ""
+
+        # Check cache first
+        cached = _get_cached_result(raw_url)
+        if cached is not None:
+            return cached["url"]
+
+        # Process and cache
+        result = process_url(raw_url, whitelist)
+        _cache_result(raw_url, result)
+        return result["url"]
+
+    def process_url_domain_only(raw_url: str | None) -> str | None:
+        """SQLite function that returns only the domain."""
+        if raw_url is None:
+            return None
+        if not raw_url:
+            return ""
+
+        # Check cache first
+        cached = _get_cached_result(raw_url)
+        if cached is not None:
+            return cached["domain"]
+
+        # Process and cache
+        result = process_url(raw_url, whitelist)
+        _cache_result(raw_url, result)
+        return result["domain"]
+
+    def process_url_stripped_only(raw_url: str | None) -> str | None:
+        """SQLite function that returns only the stripped query parameters."""
+        if raw_url is None:
+            return None
+        if not raw_url:
+            return ""
+
+        # Check cache first
+        cached = _get_cached_result(raw_url)
+        if cached is not None:
+            return cached["stripped_qp"]
+
+        # Process and cache
+        result = process_url(raw_url, whitelist)
+        _cache_result(raw_url, result)
+        return result["stripped_qp"]
+
+    # Register functions with different numbers of return values
+    conn.create_function("process_url_url", 1, process_url_url_only, deterministic=True)
+    conn.create_function("process_url_domain", 1, process_url_domain_only, deterministic=True)
+    conn.create_function("process_url_stripped", 1, process_url_stripped_only, deterministic=True)
+
+
+def _create_unified_db_connection(dest_db: Path | None, whitelist: Whitelist) -> Connection:
     """Create and initialize the unified database connection."""
     if dest_db is not None:
         if dest_db.exists():
+            logger.debug("Removing existing unified database at %s", dest_db)
             dest_db.unlink()
+        logger.debug("Creating unified database at %s", dest_db)
         conn = connect(f"file:{dest_db}?mode=rwc", uri=True)
     else:
+        logger.debug("Creating in-memory unified database")
         conn = connect(":memory:")
+
+    # Register SQLite functions before creating tables
+    _register_sqlite_functions(conn, whitelist)
 
     cur = conn.cursor()
     cur.executescript(
@@ -156,39 +245,6 @@ def _create_unified_db_connection(dest_db: Path | None) -> Connection:
     return conn
 
 
-def _apply_qp_whitelist(conn: Connection, whitelist: Whitelist) -> None:
-    """Post-process all rows: apply the query-parameter whitelist."""
-    cur = conn.cursor()
-    rows = cur.execute("SELECT rowid, url, referrer_url FROM browser_history").fetchall()
-    for rowid, raw_url, raw_referrer in rows:
-        result = process_url(raw_url, whitelist)
-        if raw_referrer is not None:
-            ref_result = process_url(raw_referrer, whitelist)
-            ref_url = ref_result["url"]
-            ref_domain = ref_result["domain"]
-            ref_stripped = ref_result["stripped_qp"]
-        else:
-            ref_url = None
-            ref_domain = None
-            ref_stripped = None
-        cur.execute(
-            """UPDATE browser_history
-               SET url = ?, domain = ?, stripped_qp = ?,
-                   referrer_url = ?, referrer_domain = ?, referrer_stripped_qp = ?
-               WHERE rowid = ?""",
-            (
-                result["url"],
-                result["domain"],
-                result["stripped_qp"],
-                ref_url,
-                ref_domain,
-                ref_stripped,
-                rowid,
-            ),
-        )
-    conn.commit()
-
-
 def _process_browser_sources(conn: Connection, sources: Iterable[tuple[BrowserType, Path]]) -> None:
     """Process and import browser history from all sources."""
     cur = conn.cursor()
@@ -204,6 +260,7 @@ def _process_browser_sources(conn: Connection, sources: Iterable[tuple[BrowserTy
         for og_path, copy_path in locked_copies:
             browser: BrowserType = next(browser for browser, path in sources if path == og_path)
             alias_num += 1
+            logger.debug(f"Processing {browser} history from {og_path} (copy at {copy_path})")
 
             alias = f"src{alias_num}"
             cur.execute("ATTACH DATABASE ? AS " + alias, (f"file:{copy_path}?immutable=1&mode=ro",))
@@ -222,9 +279,8 @@ def build_unified_browser_history_db(
     sources: Iterable[tuple[BrowserType, Path]],
     whitelist: Whitelist | None = None,
 ) -> Connection:
-    conn = _create_unified_db_connection(dest_db)
+    conn = _create_unified_db_connection(dest_db, whitelist if whitelist is not None else {})
     _process_browser_sources(conn, sources)
-    _apply_qp_whitelist(conn, whitelist if whitelist is not None else {})
     return conn
 
 
