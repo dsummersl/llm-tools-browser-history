@@ -666,7 +666,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=6" },
     { name = "radon", specifier = ">=6.0.1" },
     { name = "ruff", specifier = ">=0.5" },
-    { name = "treepeat", specifier = ">=0.4.0" },
+    { name = "treepeat", specifier = ">=0.4.1" },
     { name = "types-pyyaml", specifier = ">=6.0" },
 ]
 
@@ -908,6 +908,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/44/c2/65686a7783a7c27a329706207147e82f23c41221ee9ae33128fc331670a0/pip-26.0.tar.gz", hash = "sha256:3ce220a0a17915972fbf1ab451baae1521c4539e778b28127efa79b974aff0fa", size = 1812654, upload-time = "2026-01-31T01:40:54.361Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/69/00/5ac7aa77688ec4d34148b423d34dc0c9bc4febe0d872a9a1ad9860b2f6f1/pip-26.0-py3-none-any.whl", hash = "sha256:98436feffb9e31bc9339cf369fd55d3331b1580b6a6f1173bacacddcf9c34754", size = 1787564, upload-time = "2026-01-31T01:40:52.252Z" },
+]
+
+[[package]]
+name = "pipdeptree"
+version = "2.30.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "pip" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/03/65/f1881a1b6c49e9c94a463f7c52a23cbadcb0e778418056c9f97cbfae4ede/pipdeptree-2.30.0.tar.gz", hash = "sha256:0f78fe4bcf36a72d0d006aee0f4e315146cb278e4c4d51621f370a3d6b8861c1", size = 42737, upload-time = "2025-11-12T04:16:20.315Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/90/3d/21d6b9a0d04c6aa48621d500af4648435e4b0906437c8474ddb188249436/pipdeptree-2.30.0-py3-none-any.whl", hash = "sha256:e08ee7eb8152c0d67aee308c8477a489ab0af1a4aafe988d9d2d9998f78a24a6", size = 34017, upload-time = "2025-11-12T04:16:18.835Z" },
 ]
 
 [[package]]
@@ -1809,11 +1822,12 @@ wheels = [
 
 [[package]]
 name = "treepeat"
-version = "0.4.0"
+version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "datasketch" },
+    { name = "pipdeptree" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-magic" },
@@ -1823,9 +1837,9 @@ dependencies = [
     { name = "tree-sitter" },
     { name = "tree-sitter-language-pack" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ae/b9/28d43c9efb52bc31d6d9fdad6a40d9045c18b1a0c6cfb655fff7b30a4799/treepeat-0.4.0.tar.gz", hash = "sha256:02def083c5e2b111f8dbcde243449c84947df945dacd7360aacfe2c8868f0738", size = 49763, upload-time = "2026-01-30T02:32:37.172Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/1c/1046e360dc7268ac0a0ea1a91ce07596c6d263f07e272027edc12e63607d/treepeat-0.4.1.tar.gz", hash = "sha256:2d2062d073f730bfcd837f2f9d7023be666fd2a1a9847501897fc8824a89b09d", size = 49429, upload-time = "2026-02-07T19:53:39.462Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1f/ee/2f58d89e8089e8de2c2c142e04e0c15d2d52cd836b557ed320673f1178a6/treepeat-0.4.0-py3-none-any.whl", hash = "sha256:df842b7c0f015f130c74e8c86de486611f2de455aed01219ad3e7ce7ba8e3203", size = 64575, upload-time = "2026-01-30T02:32:36.068Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/b4/c27a9826a0a003089329406b246424a50e3cce7353cc830345042eaa1e84/treepeat-0.4.1-py3-none-any.whl", hash = "sha256:42ddf784a72a6f8897a9f8c5348b28a591051df3a37c45e3b1d0798ba4847abb", size = 64644, upload-time = "2026-02-07T19:53:38.107Z" },
 ]
 
 [[package]]
