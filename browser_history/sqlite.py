@@ -94,29 +94,31 @@ def _update_metadata(
 
 
 @contextmanager
-def copy_locked_dbs(
-    paths: list[pathlib.Path],
-) -> "Generator[list[tuple[pathlib.Path, pathlib.Path]], None, None]":
+def prepare_browser_db(
+    browser: BrowserType, profile_path: pathlib.Path
+) -> "Generator[pathlib.Path, None, None]":
+    """Prepare a browser database for reading, handling journal files appropriately.
+
+    For Chrome: Copies History and History-journal files, then creates a clean
+                database using VACUUM INTO.
+    For Firefox/Safari: Simply copies the database file.
+    """
     tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="llm_bh"))
     try:
-        copies = []
-        for path in paths:
-            dst = tmpdir / path.name
-            try:
-                shutil.copy2(path, dst)
-                copies.append((path, dst))
-            except OSError as e:
-                logger.warning(f"Failed to copy {path} to {dst}: {e}")
-        yield copies  # List of (original, copy) tuples
+        if browser == "chrome":
+            # Get all associated journal files for Chrome
+            from .chrome import get_chrome_journal_files, create_clean_chrome_db
+
+            source_files = get_chrome_journal_files(profile_path)
+            clean_db_path = create_clean_chrome_db(source_files, tmpdir)
+            yield clean_db_path
+        else:
+            # For Firefox and Safari, just copy the file
+            dst = tmpdir / profile_path.name
+            shutil.copy2(profile_path, dst)
+            yield dst
     finally:
         shutil.rmtree(tmpdir)
-
-
-def copy_locked_db(path: pathlib.Path) -> pathlib.Path:
-    tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="llm_bh"))
-    dst = tmpdir / path.name
-    _ = shutil.copy2(path, dst)
-    return dst
 
 
 _UNIFIED_DB_CONN: Connection | None = None
@@ -138,6 +140,7 @@ def insert_selected_records(cur: Cursor, select_query: str) -> None:
 
     # Execute the query and get row count
     cur.execute(full_query)
+
     rowcount = cur.rowcount
     logger.debug(f"Query inserted {rowcount} records")
 
@@ -301,18 +304,14 @@ def _process_browser_sources(
         logger.debug("No sources need processing")
         return
 
-    with copy_locked_dbs([path for _, _, path in sources_to_process]) as locked_copies:
-        for og_path, copy_path in locked_copies:
-            # Find the browser and profile name for this path
-            browser: BrowserType = next(b for b, p, path in sources_to_process if path == og_path)
-            profile_name: str = next(p for b, p, path in sources_to_process if path == og_path)
-            alias_num += 1
-            logger.debug(
-                f"Processing {browser} history from {og_path} (profile: {profile_name}, copy at {copy_path})"
-            )
+    # Process each browser source individually
+    for browser, profile_name, source_path in sources_to_process:
+        alias_num += 1
+        logger.debug(f"Processing {browser} history from {source_path} (profile: {profile_name})")
 
+        with prepare_browser_db(browser, source_path) as prepared_db_path:
             alias = f"src{alias_num}"
-            cur.execute("ATTACH DATABASE ? AS " + alias, (f"file:{copy_path}?immutable=1&mode=ro",))
+            cur.execute("ATTACH DATABASE ? AS " + alias, (f"file:{prepared_db_path}?immutable=1&mode=ro",))
 
             profile_label = f"{browser}:{profile_name}"
 
@@ -320,8 +319,8 @@ def _process_browser_sources(
             inserter(cur, alias, profile_label)
 
             # Update metadata after successful processing
-            sha256_hash = compute_file_hash(og_path)
-            _update_metadata(cur, browser, profile_name, og_path, sha256_hash)
+            sha256_hash = compute_file_hash(source_path)
+            _update_metadata(cur, browser, profile_name, source_path, sha256_hash)
 
             conn.commit()
             cur.execute(f"DETACH DATABASE {alias}")

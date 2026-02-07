@@ -1,7 +1,7 @@
 from __future__ import annotations
 import sqlite3
 
-from browser_history.sqlite import copy_locked_db
+
 from browser_history.sqlite import build_unified_browser_history_db
 from browser_history.sqlite import run_unified_query
 
@@ -11,17 +11,6 @@ fixture_path = Path(__file__).parent / "fixtures"
 chrome_db = fixture_path / "chrome-places.db"
 firefox_db = fixture_path / "firefox-places.db"
 safari_db = fixture_path / "safari-places.db"
-
-
-def test_copy_locked_db_creates_distinct_copy():
-    src = fixture_path / "src.sqlite"
-    src.write_bytes(b"hello")
-    copied = copy_locked_db(src)
-    assert copied.exists()
-    assert copied.read_bytes() == b"hello"
-    # Should be placed in a temp directory and not the same path
-    assert copied != src
-    assert copied.name == src.name
 
 
 def test_build_unified_browser_history_db():
