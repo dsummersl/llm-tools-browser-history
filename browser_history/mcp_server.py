@@ -30,11 +30,18 @@ def get_version() -> str:
         return "0.0.0-dev"
 
 
-def make_mcp(sources: Iterable[str], max_rows: int, whitelist: Whitelist | None = None) -> FastMCP:
+def make_mcp(
+    sources: Iterable[str],
+    max_rows: int,
+    whitelist: Whitelist | None = None,
+    use_cache: bool = False,
+) -> FastMCP:
     mcp = FastMCP("browser-history", stateless_http=True, json_response=True)
 
     # Pass sources and max_rows to BrowserHistory
-    browser_history = BrowserHistory(sources, max_rows, whitelist=whitelist, db_path=None)
+    browser_history = BrowserHistory(
+        sources, max_rows, whitelist=whitelist, db_path=None, use_cache=use_cache
+    )
 
     @mcp.tool(description=browser_history.search.__doc__)
     def search(sql: str) -> list[Any]:
@@ -73,11 +80,20 @@ def _run_single_query(
     max_rows: int,
     whitelist: Whitelist,
     sql: str,
+    use_cache: bool = False,
 ) -> None:
     """Execute a single SQL query, print a human-readable table, then exit."""
     try:
-        bh = BrowserHistory(sources or None, max_rows, whitelist=whitelist, db_path=None)
-        conn = get_or_create_unified_db(bh.sources, whitelist=whitelist, db_path=None)
+        bh = BrowserHistory(
+            sources or None,
+            max_rows,
+            whitelist=whitelist,
+            db_path=None,
+            use_cache=use_cache,
+        )
+        conn = get_or_create_unified_db(
+            bh.sources, whitelist=whitelist, db_path=None, use_cache=use_cache
+        )
         headers, rows = run_unified_query_with_headers(conn, sql, max_rows=max_rows)
     except Exception as exc:
         click.echo(f"Error: {exc}", err=True)
@@ -138,6 +154,11 @@ def _run_single_query(
     default=None,
     help="Execute a single SQL query against the browser history, print results, and exit.",
 )
+@click.option(
+    "--use-cache/--no-cache",
+    default=False,
+    help="Enable/disable using a cached unified database (default: --no-cache)",
+)
 def cli(
     transport: str,
     sources: tuple[str, ...],
@@ -145,18 +166,21 @@ def cli(
     log_level: str,
     qp_whitelist_path: Path | None,
     single_query: str | None,
+    use_cache: bool,
 ) -> None:
     logging.basicConfig(level=LOG_LEVELS[log_level])
 
     whitelist = load_whitelist(qp_whitelist_path)
 
     if single_query is not None:
-        _run_single_query(sources, max_rows, whitelist, single_query)
+        _run_single_query(sources, max_rows, whitelist, single_query, use_cache=use_cache)
         return
 
     atexit.register(cleanup_unified_db)
     transport_mode: Literal["stdio", "sse", "streamable-http"] = transport  # type: ignore[assignment]
-    make_mcp(sources, max_rows, whitelist=whitelist).run(transport=transport_mode)
+    make_mcp(sources, max_rows, whitelist=whitelist, use_cache=use_cache).run(
+        transport=transport_mode
+    )
 
 
 if __name__ == "__main__":
