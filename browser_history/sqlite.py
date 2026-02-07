@@ -8,7 +8,7 @@ from collections.abc import Callable, Generator, Iterable
 from contextlib import contextmanager
 from pathlib import Path
 from sqlite3 import Connection, Cursor, connect
-from typing import Any
+from typing import Any, Literal
 
 from .browser_types import BrowserType
 from .chrome import get_chrome_history_query
@@ -21,14 +21,14 @@ logger = logging.getLogger(__name__)
 
 
 def get_persistent_db_path() -> Path:
-    """Get the path to the persistent database file."""
+    """Get path to persistent database file."""
     config_dir = Path.home() / ".config" / "llm-tools-browser-history"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir / "history.db"
 
 
 def compute_file_hash(file_path: Path) -> str:
-    """Compute SHA256 hash of a file."""
+    """Compute SHA256 hash of file."""
     sha256 = hashlib.sha256()
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
@@ -44,10 +44,7 @@ def get_file_mtime(file_path: Path) -> float:
 def _should_process_source(
     cur: Cursor, browser: BrowserType, profile: str, source_path: Path
 ) -> tuple[bool, str | None]:
-    """Check if a browser source needs processing.
-
-    Returns (needs_processing, existing_hash)
-    """
+    """Check if a browser source needs processing."""
     cur.execute(
         """
         SELECT sha256_hash, last_modified
@@ -83,7 +80,7 @@ def _should_process_source(
 def _update_metadata(
     cur: Cursor, browser: BrowserType, profile: str, source_path: Path, sha256_hash: str
 ) -> None:
-    """Update metadata for a processed browser source."""
+    """Update metadata for processed browser source."""
     cur.execute(
         """
         INSERT OR REPLACE INTO browser_metadata
@@ -98,11 +95,7 @@ def _update_metadata(
 def prepare_browser_db(
     browser: BrowserType, profile_path: pathlib.Path
 ) -> "Generator[pathlib.Path, None, None]":
-    """Prepare a browser database for reading, handling journal files appropriately.
-
-    For all browsers: Copies database and any associated journal/WAL files,
-                      then creates a clean database using VACUUM INTO.
-    """
+    """Prepare browser database for reading."""
     tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="llm_bh"))
     try:
         # Get all associated journal files for the database
@@ -117,12 +110,7 @@ _UNIFIED_DB_CONN: Connection | None = None
 
 
 def insert_selected_records(cur: Cursor, select_query: str) -> None:
-    """Insert records using a SELECT query into browser_history table.
-
-    The select_query should return columns matching the browser_history table schema:
-    (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp,
-     referrer_domain, referrer_stripped_qp)
-    """
+    """Insert records using a SELECT query."""
     full_query = f"""
         INSERT INTO browser_history
         (browser, profile, url, title, referrer_url, visited_dt, domain, stripped_qp,
@@ -138,9 +126,12 @@ def insert_selected_records(cur: Cursor, select_query: str) -> None:
 
 
 def _process_url_internal(
-    raw_url: str | None, whitelist: Whitelist, cache: dict[str, ProcessedURL], key: str
+    raw_url: str | None,
+    whitelist: Whitelist,
+    cache: dict[str, ProcessedURL],
+    key: Literal["url", "domain", "stripped_qp"],
 ) -> str | None:
-    """Helper for URL processing with memoization."""
+    """Process URL with memoization."""
     if raw_url is None:
         return None
     if not raw_url:
@@ -151,25 +142,25 @@ def _process_url_internal(
         cache[raw_url] = process_url(raw_url, whitelist)
 
     # Return requested key
-    return cache[raw_url][key]  # type: ignore
+    return cache[raw_url][key]
 
 
 def _register_sqlite_functions(conn: Connection, whitelist: Whitelist) -> None:
-    """Register custom SQLite functions for URL processing with memoization."""
+    """Register custom SQLite functions."""
 
     # Cache for processed URLs
     _url_cache: dict[str, ProcessedURL] = {}
 
     def process_url_url_only(raw_url: str | None) -> str | None:
-        """SQLite function that returns only the processed URL."""
+        """Return processed URL."""
         return _process_url_internal(raw_url, whitelist, _url_cache, "url")
 
     def process_url_domain_only(raw_url: str | None) -> str | None:
-        """SQLite function that returns only the domain."""
+        """Return domain."""
         return _process_url_internal(raw_url, whitelist, _url_cache, "domain")
 
     def process_url_stripped_only(raw_url: str | None) -> str | None:
-        """SQLite function that returns only the stripped query parameters."""
+        """Return stripped query parameters."""
         return _process_url_internal(raw_url, whitelist, _url_cache, "stripped_qp")
 
     # Register functions with different numbers of return values
@@ -179,7 +170,7 @@ def _register_sqlite_functions(conn: Connection, whitelist: Whitelist) -> None:
 
 
 def _create_unified_db_connection(dest_db: Path | None, whitelist: Whitelist) -> Connection:
-    """Create and initialize the unified database connection."""
+    """Create unified database connection."""
     if dest_db is not None:
         logger.debug("Opening unified database at %s", dest_db)
         conn = connect(f"file:{dest_db}?mode=rwc", uri=True)
@@ -232,7 +223,7 @@ def _process_single_source(
     alias_num: int,
     browser_inserters: dict[BrowserType, Callable[[Cursor, str, str], None]],
 ) -> int:
-    """Process a single browser source and return updated alias_num."""
+    """Process single browser source."""
     alias_num += 1
     logger.debug(f"Processing {browser} history from {source_path} (profile: {profile_name})")
 
@@ -259,7 +250,7 @@ def _process_single_source(
 def _process_browser_sources(
     conn: Connection, sources: Iterable[tuple[BrowserType, str, Path]]
 ) -> None:
-    """Process and import browser history from all sources."""
+    """Process browser sources."""
     cur = conn.cursor()
     alias_num = 0
 
@@ -310,13 +301,14 @@ def get_or_create_unified_db(
     sources: Iterable[tuple[BrowserType, str, Path]],
     whitelist: Whitelist | None = None,
     db_path: Path | None = None,
+    use_cache: bool = False,
 ) -> Connection:
     global _UNIFIED_DB_CONN
     if _UNIFIED_DB_CONN is not None:
         return _UNIFIED_DB_CONN
 
-    # Use persistent database by default
-    if db_path is None:
+    # Use persistent database if requested and no specific path provided
+    if db_path is None and use_cache:
         db_path = get_persistent_db_path()
 
     conn = build_unified_browser_history_db(db_path, sources, whitelist)
@@ -325,7 +317,7 @@ def get_or_create_unified_db(
 
 
 def cleanup_unified_db() -> None:
-    """Close the unified database connection."""
+    """Close unified database connection."""
     global _UNIFIED_DB_CONN
     if _UNIFIED_DB_CONN is None:
         return
@@ -349,7 +341,7 @@ def run_unified_query(
 def run_unified_query_with_headers(
     conn: Connection, sql: str, params: dict[str, object] | None = None, max_rows: int = 100
 ) -> tuple[list[str], list[Any]]:
-    """Like :func:`run_unified_query` but also returns column headers."""
+    """Run query and return column headers."""
     cur = conn.execute(sql, params or {})
     headers = [desc[0] for desc in cur.description] if cur.description else []
     return headers, cur.fetchmany(max_rows)
