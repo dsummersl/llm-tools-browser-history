@@ -40,6 +40,7 @@ make ci     # Run all CI checks (lint + type + test + radon)
 
 - `Task(subagent_type="quiet-runner", prompt="make ci")`
 - `Task(subagent_type="quiet-runner", prompt="pytest tests/ -x")`
+- `Task(subagent_type="quiet-runner", prompt="uv run pytest tests/ -x")`
 
 This approach keeps the conversation history clean, saves tokens, and allows for faster iteration. Only use `bash` for commands when you explicitly need to see the full streaming output for interactive debugging.
 
