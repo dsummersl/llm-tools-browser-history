@@ -3,6 +3,8 @@ import datetime
 import logging
 import glob
 
+from .browser_types import HISTORY_COLUMNS_TEMPLATE
+
 logger = logging.getLogger(__name__)
 
 APPLE_EPOCH = datetime.datetime(2001, 1, 1, tzinfo=datetime.timezone.utc)
@@ -60,18 +62,19 @@ def get_safari_history_query(alias: str, profile_label: str) -> str:
     Returns just the SELECT portion (without INSERT INTO) that can be used
     with insert_selected_records.
     """
+    columns = HISTORY_COLUMNS_TEMPLATE.format(
+        browser_name="'safari'",
+        profile_label=profile_label,
+        url_col="i.url",
+        title_col="v.title",
+        referrer_url_expr="NULL",
+        date_expr="strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch')",
+        referrer_domain_expr="NULL",
+        referrer_stripped_qp_expr="NULL",
+    )
     query = f"""
         SELECT
-          'safari' AS browser,
-          '{profile_label}' AS profile,
-          process_url_url(i.url) AS url,
-          v.title,
-          NULL AS referrer_url,
-          strftime('%Y-%m-%d %H:00:00', v.visit_time + strftime('%s','2001-01-01'), 'unixepoch') AS visited_dt,
-          process_url_domain(i.url) AS domain,
-          process_url_stripped(i.url) AS stripped_qp,
-          NULL AS referrer_domain,
-          NULL AS referrer_stripped_qp
+          {columns}
         FROM {alias}.history_items i
         LEFT JOIN {alias}.history_visits v ON v.history_item = i.id
         """

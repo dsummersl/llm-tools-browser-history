@@ -20,8 +20,8 @@ def test_load_default_whitelist():
 
 
 def test_load_whitelist_missing_file():
-    with pytest.raises(FileNotFoundError):
-        load_whitelist(Path("/nonexistent/file.yaml"))
+    wl = load_whitelist(Path("/nonexistent/file.yaml"))
+    assert wl == default_query_param_whitelist
 
 
 @pytest.mark.parametrize(

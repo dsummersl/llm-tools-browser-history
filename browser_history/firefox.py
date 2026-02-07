@@ -2,6 +2,8 @@ import glob
 import logging
 from pathlib import Path
 
+from .browser_types import HISTORY_COLUMNS_TEMPLATE
+
 logger = logging.getLogger(__name__)
 
 MICROSECOND = 1_000_000
@@ -29,18 +31,19 @@ def get_firefox_history_query(alias: str, profile_label: str) -> str:
     Returns just the SELECT portion (without INSERT INTO) that can be used
     with insert_selected_records.
     """
+    columns = HISTORY_COLUMNS_TEMPLATE.format(
+        browser_name="'firefox'",
+        profile_label=profile_label,
+        url_col="p.url",
+        title_col="p.title",
+        referrer_url_expr="process_url_url(pr.url)",
+        date_expr="strftime('%Y-%m-%d %H:00:00', h.visit_date/1000000, 'unixepoch')",
+        referrer_domain_expr="process_url_domain(pr.url)",
+        referrer_stripped_qp_expr="process_url_stripped(pr.url)",
+    )
     query = f"""
         SELECT
-          'firefox' AS browser,
-          '{profile_label}' AS profile,
-          process_url_url(p.url) AS url,
-          p.title,
-          process_url_url(pr.url) AS referrer_url,
-          strftime('%Y-%m-%d %H:00:00', h.visit_date/1000000, 'unixepoch') AS visited_dt,
-          process_url_domain(p.url) AS domain,
-          process_url_stripped(p.url) AS stripped_qp,
-          process_url_domain(pr.url) AS referrer_domain,
-          process_url_stripped(pr.url) AS referrer_stripped_qp
+          {columns}
         FROM {alias}.moz_historyvisits h
         JOIN {alias}.moz_places p         ON p.id = h.place_id
         LEFT JOIN {alias}.moz_historyvisits ph ON ph.id = h.from_visit

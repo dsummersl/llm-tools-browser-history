@@ -34,16 +34,6 @@ make ci     # Run all CI checks (lint + type + test + radon)
 
 **Before completing any feature**, run `make ci` to ensure all checks pass.
 
-## LLM Guidance
-
-**IMPORTANT**: When you need to run a build, test suite, or CI command, ALWAYS delegate to `@quiet-runner` via the `Task` tool instead of running it yourself directly via `bash`. This applies to both the main agent and all subagents.
-
-- `Task(subagent_type="quiet-runner", prompt="make ci")`
-- `Task(subagent_type="quiet-runner", prompt="pytest tests/ -x")`
-- `Task(subagent_type="quiet-runner", prompt="uv run pytest tests/ -x")`
-
-This approach keeps the conversation history clean, saves tokens, and allows for faster iteration. Only use `bash` for commands when you explicitly need to see the full streaming output for interactive debugging.
-
 ## Code Quality Requirements
 
 Writing guidance:
