@@ -34,6 +34,16 @@ make ci     # Run all CI checks (lint + type + test + radon)
 
 **Before completing any feature**, run `make ci` to ensure all checks pass.
 
+## LLM Guidance
+
+When you need to run a build, test suite, or CI command, delegate to `@runner` instead of running it yourself directly. For example:
+
+- `@quiet-runner make build`
+- `@quiet-runner pytest tests/ -x`
+- `@quiet-runner cargo test`
+
+If `@quiet-runner` returns "success", proceed with your task. If it returns an error summary and theory, use that to inform your next edit — do not re-run the command yourself.
+
 ## Code Quality Requirements
 
 Writing guidance:
@@ -44,6 +54,20 @@ Writing guidance:
 ## Execution Preferences
 
 - **Subagent-Driven Development**: Prefer using `superpowers:subagent-driven-development` for executing implementation plans within the same session.
+
+## Lessons Learned
+
+### Use quiet-runner for intermediate verification
+
+**Problem**: When making multiple changes to fix CI issues (like refactoring for complexity or fixing test failures), it's easy to introduce new issues or not fully solve the original problem.
+
+**Solution**: Use quiet-runner between major changes to catch issues early. For test failures, run the specific failing test directly with verbose output (`uv run pytest tests/test_file.py::test_name -xvs`) to see detailed error messages.
+
+**Directive**: When fixing CI failures:
+1. First use quiet-runner to identify all issues
+2. For test failures, run the specific failing test with verbose output to understand the exact failure
+3. After each significant code change, use quiet-runner again to verify the fix doesn't break other tests or introduce new issues
+4. Continue until quiet-runner reports "success"
 
 ## Project Structure
 

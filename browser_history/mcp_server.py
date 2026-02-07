@@ -79,6 +79,9 @@ def _run_single_query(
         bh = BrowserHistory(sources or None, max_rows, whitelist=whitelist, db_path=None)
         conn = get_or_create_unified_db(bh.sources, whitelist=whitelist, db_path=None)
         headers, rows = run_unified_query_with_headers(conn, sql, max_rows=max_rows)
+    except Exception as exc:
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1) from None
     finally:
         cleanup_unified_db()
 

@@ -15,6 +15,7 @@ from .chrome import get_chrome_history_query
 from .firefox import get_firefox_history_query
 from .qp_whitelist import ProcessedURL, Whitelist, process_url
 from .safari import get_safari_history_query
+from .sqliteutils import get_sqlite_journal_files, create_clean_sqlite_db
 
 logger = logging.getLogger(__name__)
 
@@ -99,24 +100,15 @@ def prepare_browser_db(
 ) -> "Generator[pathlib.Path, None, None]":
     """Prepare a browser database for reading, handling journal files appropriately.
 
-    For Chrome: Copies History and History-journal files, then creates a clean
-                database using VACUUM INTO.
-    For Firefox/Safari: Simply copies the database file.
+    For all browsers: Copies database and any associated journal/WAL files,
+                      then creates a clean database using VACUUM INTO.
     """
     tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="llm_bh"))
     try:
-        if browser == "chrome":
-            # Get all associated journal files for Chrome
-            from .chrome import get_chrome_journal_files, create_clean_chrome_db
-
-            source_files = get_chrome_journal_files(profile_path)
-            clean_db_path = create_clean_chrome_db(source_files, tmpdir)
-            yield clean_db_path
-        else:
-            # For Firefox and Safari, just copy the file
-            dst = tmpdir / profile_path.name
-            shutil.copy2(profile_path, dst)
-            yield dst
+        # Get all associated journal files for the database
+        source_files = get_sqlite_journal_files(profile_path)
+        clean_db_path = create_clean_sqlite_db(source_files, tmpdir)
+        yield clean_db_path
     finally:
         shutil.rmtree(tmpdir)
 
@@ -261,6 +253,39 @@ def _create_unified_db_connection(dest_db: Path | None, whitelist: Whitelist) ->
     return conn
 
 
+def _process_single_source(
+    conn: Connection,
+    cur: Cursor,
+    browser: BrowserType,
+    profile_name: str,
+    source_path: Path,
+    alias_num: int,
+    browser_inserters: dict[BrowserType, Callable[[Cursor, str, str], None]],
+) -> int:
+    """Process a single browser source and return updated alias_num."""
+    alias_num += 1
+    logger.debug(f"Processing {browser} history from {source_path} (profile: {profile_name})")
+
+    with prepare_browser_db(browser, source_path) as prepared_db_path:
+        alias = f"src{alias_num}"
+        cur.execute(
+            "ATTACH DATABASE ? AS " + alias, (f"file:{prepared_db_path}?immutable=1&mode=ro",)
+        )
+
+        profile_label = f"{browser}:{profile_name}"
+
+        inserter = browser_inserters[browser]
+        inserter(cur, alias, profile_label)
+
+        # Update metadata after successful processing
+        sha256_hash = compute_file_hash(source_path)
+        _update_metadata(cur, browser, profile_name, source_path, sha256_hash)
+
+        conn.commit()
+        cur.execute(f"DETACH DATABASE {alias}")
+    return alias_num
+
+
 def _process_browser_sources(
     conn: Connection, sources: Iterable[tuple[BrowserType, str, Path]]
 ) -> None:
@@ -280,50 +305,25 @@ def _process_browser_sources(
         ),
     }
 
-    # Group sources by browser and profile
-    sources_to_process = []
-    for b, p, source_path in sources:
-        needs_processing, existing_hash = _should_process_source(cur, b, p, source_path)
-
+    # Process each browser source individually
+    for browser, profile_name, source_path in sources:
+        needs_processing, existing_hash = _should_process_source(
+            cur, browser, profile_name, source_path
+        )
         if needs_processing:
-            logger.debug(f"Source {b}:{p} needs processing (changed or new)")
-            # Delete existing rows for this browser/profile if they exist
+            logger.debug(f"Source {browser}:{profile_name} needs processing (changed or new)")
             if existing_hash is not None:
-                profile_label = f"{b}:{p}"
+                profile_label = f"{browser}:{profile_name}"
                 cur.execute(
                     "DELETE FROM browser_history WHERE browser = ? AND profile = ?",
-                    (b, profile_label),
+                    (browser, profile_label),
                 )
-                logger.debug(f"Deleted existing rows for {b}:{profile_label}")
-
-            sources_to_process.append((b, p, source_path))
+                logger.debug(f"Deleted existing rows for {browser}:{profile_label}")
+            alias_num = _process_single_source(
+                conn, cur, browser, profile_name, source_path, alias_num, browser_inserters
+            )
         else:
-            logger.debug(f"Skipping {b}:{p} - no changes detected")
-
-    if not sources_to_process:
-        logger.debug("No sources need processing")
-        return
-
-    # Process each browser source individually
-    for browser, profile_name, source_path in sources_to_process:
-        alias_num += 1
-        logger.debug(f"Processing {browser} history from {source_path} (profile: {profile_name})")
-
-        with prepare_browser_db(browser, source_path) as prepared_db_path:
-            alias = f"src{alias_num}"
-            cur.execute("ATTACH DATABASE ? AS " + alias, (f"file:{prepared_db_path}?immutable=1&mode=ro",))
-
-            profile_label = f"{browser}:{profile_name}"
-
-            inserter = browser_inserters[browser]
-            inserter(cur, alias, profile_label)
-
-            # Update metadata after successful processing
-            sha256_hash = compute_file_hash(source_path)
-            _update_metadata(cur, browser, profile_name, source_path, sha256_hash)
-
-            conn.commit()
-            cur.execute(f"DETACH DATABASE {alias}")
+            logger.debug(f"Skipping {browser}:{profile_name} - no changes detected")
 
 
 def build_unified_browser_history_db(
