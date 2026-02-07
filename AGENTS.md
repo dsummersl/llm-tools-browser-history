@@ -37,6 +37,7 @@ make ci     # Run all CI checks (lint + type + test + radon)
 ## LLM Guidance
 
 **IMPORTANT**: When you need to run a build, test suite, or CI command, ALWAYS delegate to `@quiet-runner` via the `Task` tool instead of running it yourself directly via `bash`. This applies to both the main agent and all subagents.
+**IMPORTANT**: Do not run `make` or `uv run` commands directly in `bash` when you want to execute them as part of an implementation plan. Use the @quiet-runner subagent instead.
 
 - `Task(subagent_type="quiet-runner", prompt="make ci")`
 - `Task(subagent_type="quiet-runner", prompt="pytest tests/ -x")`

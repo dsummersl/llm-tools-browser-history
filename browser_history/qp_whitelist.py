@@ -41,7 +41,11 @@ def _read_yaml(path: Path | None) -> Whitelist:
     Returns the parsed object or ``None`` on any error.
     """
     if path is not None:
-        text = path.read_text(encoding="utf-8")
+        try:
+            text = path.read_text(encoding="utf-8")
+        except Exception:
+            logger.warning("Error reading whitelist from %s; using default", path)
+            return default_query_param_whitelist
         data: object = yaml.safe_load(text)
         return _validate_whitelist(data)
     else:
@@ -66,8 +70,7 @@ def load_whitelist(path: Path | None) -> Whitelist:
     """Load a whitelist YAML file.
 
     If *path* is ``None`` the built-in default is used.
-    On any error the function logs a warning and returns an empty dict
-    (which makes every domain fall back to "strip all").
+    On any error the function logs a warning and returns the default whitelist.
     """
     return _read_yaml(path)
 
