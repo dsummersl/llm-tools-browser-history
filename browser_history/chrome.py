@@ -5,6 +5,7 @@ import logging
 
 
 from .sqliteutils import get_sqlite_journal_files, create_clean_sqlite_db
+from .browser_types import HISTORY_COLUMNS_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -35,18 +36,19 @@ def get_chrome_history_query(alias: str, profile_label: str) -> str:
     Returns just the SELECT portion (without INSERT INTO) that can be used
     with insert_selected_records.
     """
+    columns = HISTORY_COLUMNS_TEMPLATE.format(
+        browser_name="'chrome'",
+        profile_label=profile_label,
+        url_col="u.url",
+        title_col="u.title",
+        referrer_url_expr="process_url_url(r.url)",
+        date_expr="strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch')",
+        referrer_domain_expr="process_url_domain(r.url)",
+        referrer_stripped_qp_expr="process_url_stripped(r.url)",
+    )
     query = f"""
         SELECT
-          'chrome' AS browser,
-          '{profile_label}' AS profile,
-          process_url_url(u.url) AS url,
-          u.title,
-          process_url_url(r.url) AS referrer_url,
-          strftime('%Y-%m-%d %H:00:00', (v.visit_time/1000 - 11644473600*1000)/1000, 'unixepoch') AS visited_dt,
-          process_url_domain(u.url) AS domain,
-          process_url_stripped(u.url) AS stripped_qp,
-          process_url_domain(r.url) AS referrer_domain,
-          process_url_stripped(r.url) AS referrer_stripped_qp
+          {columns}
         FROM {alias}.urls u
         JOIN {alias}.visits v       ON v.url = u.id
         LEFT JOIN {alias}.visits pv ON pv.id = v.from_visit
