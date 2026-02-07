@@ -62,31 +62,7 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
         return run_unified_query(unified_db, sql, {}, self.max_rows)
 
     def search(self, sql: str) -> str:
-        """
-        Execute a SQL query against a normalized, unified browser history database.
-
-        The sql query can referenc the following schema:
-
-            CREATE TABLE IF NOT EXISTS browser_history (
-            browser     TEXT NOT NULL,          -- 'chrome' | 'firefox' | 'safari' | …
-            profile     TEXT,                   -- browser profile name, e.g. 'Default', 'Profile 1', 'default-release'
-            url         TEXT NOT NULL,          -- The URL visited (query params filtered by whitelist)
-            title       TEXT,                   -- The title of the page visited.
-            referrer_url TEXT,                  -- NULL on Safari, otherwise the referrer (query params filtered by whitelist)
-            visited_dt  DATETIME NOT NULL,      -- UTC datetime
-            domain      TEXT,                   -- The domain of the URL
-            stripped_qp TEXT,                   -- Comma-separated list of query param keys that were removed
-            referrer_domain TEXT,               -- The domain of the referrer URL
-            referrer_stripped_qp TEXT           -- Comma-separated list of query param keys removed from referrer
-            );
-
-        This method will no more than 100 rows of data.
-
-        Provide any SQLite SQL in `sql` and named params in `params`. Examples:
-
-        `SELECT * FROM browser_history WHERE url LIKE :u ORDER BY visited_ms DESC`.
-        `SELECT * FROM browser_history WHERE lower(title) LIKE lower(title) LIKE lower('%lemming%') ORDER BY visited_ms DESC`.
-        """
+        """Execute a SQL query against unified browser history database."""
         return json.dumps(self._do_search(sql), indent=2)
 
     def __del__(self):  # type: ignore

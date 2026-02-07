@@ -21,10 +21,7 @@ def get_db_path(conn: sqlite3.Connection) -> str:
 
 
 def test_get_or_create_unified_db_use_cache_false_default():
-    """
-    By default, use_cache=False, so it should NOT use the persistent DB path
-    if db_path is None. It should use an in-memory DB (or whatever build_unified_browser_history_db defaults to when dest_db is None).
-    """
+    """Verify that use_cache=False does not use persistent DB."""
     with patch("browser_history.sqlite.get_persistent_db_path") as mock_get_path:
         mock_path = Path("/tmp/mock_history.db")
         mock_get_path.return_value = mock_path
@@ -44,9 +41,7 @@ def test_get_or_create_unified_db_use_cache_false_default():
 
 
 def test_get_or_create_unified_db_use_cache_true():
-    """
-    If use_cache=True and db_path is None, it SHOULD use the persistent DB path.
-    """
+    """Verify that use_cache=True uses persistent DB path."""
     with patch("browser_history.sqlite.get_persistent_db_path") as mock_get_path:
         mock_path = Path("/tmp/mock_history.db")
         mock_get_path.return_value = mock_path
