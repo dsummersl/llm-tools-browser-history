@@ -137,70 +137,40 @@ def insert_selected_records(cur: Cursor, select_query: str) -> None:
     logger.debug(f"Query inserted {rowcount} records")
 
 
+def _process_url_internal(
+    raw_url: str | None, whitelist: Whitelist, cache: dict[str, ProcessedURL], key: str
+) -> str | None:
+    """Helper for URL processing with memoization."""
+    if raw_url is None:
+        return None
+    if not raw_url:
+        return ""
+
+    # Check cache
+    if raw_url not in cache:
+        cache[raw_url] = process_url(raw_url, whitelist)
+
+    # Return requested key
+    return cache[raw_url][key]  # type: ignore
+
+
 def _register_sqlite_functions(conn: Connection, whitelist: Whitelist) -> None:
     """Register custom SQLite functions for URL processing with memoization."""
 
     # Cache for processed URLs
     _url_cache: dict[str, ProcessedURL] = {}
 
-    def _get_cached_result(raw_url: str) -> ProcessedURL | None:
-        """Get cached result for URL, returns None if not cached."""
-        return _url_cache.get(raw_url)
-
-    def _cache_result(raw_url: str, result: ProcessedURL) -> None:
-        """Cache result for URL."""
-        _url_cache[raw_url] = result
-
     def process_url_url_only(raw_url: str | None) -> str | None:
         """SQLite function that returns only the processed URL."""
-        if raw_url is None:
-            return None
-        if not raw_url:
-            return ""
-
-        # Check cache first
-        cached = _get_cached_result(raw_url)
-        if cached is not None:
-            return cached["url"]
-
-        # Process and cache
-        result = process_url(raw_url, whitelist)
-        _cache_result(raw_url, result)
-        return result["url"]
+        return _process_url_internal(raw_url, whitelist, _url_cache, "url")
 
     def process_url_domain_only(raw_url: str | None) -> str | None:
         """SQLite function that returns only the domain."""
-        if raw_url is None:
-            return None
-        if not raw_url:
-            return ""
-
-        # Check cache first
-        cached = _get_cached_result(raw_url)
-        if cached is not None:
-            return cached["domain"]
-
-        # Process and cache
-        result = process_url(raw_url, whitelist)
-        _cache_result(raw_url, result)
-        return result["domain"]
+        return _process_url_internal(raw_url, whitelist, _url_cache, "domain")
 
     def process_url_stripped_only(raw_url: str | None) -> str | None:
         """SQLite function that returns only the stripped query parameters."""
-        if raw_url is None:
-            return None
-        if not raw_url:
-            return ""
-
-        # Check cache first
-        cached = _get_cached_result(raw_url)
-        if cached is not None:
-            return cached["stripped_qp"]
-
-        # Process and cache
-        result = process_url(raw_url, whitelist)
-        _cache_result(raw_url, result)
-        return result["stripped_qp"]
+        return _process_url_internal(raw_url, whitelist, _url_cache, "stripped_qp")
 
     # Register functions with different numbers of return values
     conn.create_function("process_url_url", 1, process_url_url_only, deterministic=True)
