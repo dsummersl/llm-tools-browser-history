@@ -69,8 +69,7 @@ def load_whitelist(path: Path | None) -> Whitelist:
     On any error the function logs a warning and returns an empty dict
     (which makes every domain fall back to "strip all").
     """
-    data = _read_yaml(path)
-    return _validate_whitelist(data)
+    return _read_yaml(path)
 
 
 def _match_domain(hostname: str, whitelist: Whitelist) -> list[str] | None:
