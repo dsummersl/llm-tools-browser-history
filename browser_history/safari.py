@@ -1,13 +1,10 @@
 import pathlib
-import datetime
 import logging
 import glob
 
 from .browser_types import HISTORY_COLUMNS_TEMPLATE
 
 logger = logging.getLogger(__name__)
-
-APPLE_EPOCH = datetime.datetime(2001, 1, 1, tzinfo=datetime.timezone.utc)
 
 
 def _deduplicate_paths(candidates: list[pathlib.Path]) -> list[pathlib.Path]:

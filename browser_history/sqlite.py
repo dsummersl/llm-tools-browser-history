@@ -94,7 +94,7 @@ def _update_metadata(
 @contextmanager
 def prepare_browser_db(
     browser: BrowserType, profile_path: pathlib.Path
-) -> "Generator[pathlib.Path, None, None]":
+) -> Generator[pathlib.Path, None, None]:
     """Prepare browser database for reading."""
     tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="llm_bh"))
     try:

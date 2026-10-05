@@ -6,8 +6,6 @@ from .browser_types import HISTORY_COLUMNS_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
-MICROSECOND = 1_000_000
-
 
 def find_firefox_places_sqlite() -> list[tuple[str, Path]]:
     home = Path.home()
