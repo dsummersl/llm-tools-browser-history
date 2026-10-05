@@ -35,6 +35,7 @@ dev = [
   "radon>=6.0.1",
   "types-PyYAML>=6.0",
   "vulture>=2.16",
+  "ast-grep-cli>=0.39.0",
 ]
 
 [tool.ruff]

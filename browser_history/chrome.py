@@ -27,11 +27,6 @@ def find_chrome_history_paths() -> list[tuple[str, pathlib.Path]]:
 
 
 def get_chrome_history_query(alias: str, profile_label: str) -> str:
-    """Generate SELECT query for Chrome browser history.
-
-    Returns just the SELECT portion (without INSERT INTO) that can be used
-    with insert_selected_records.
-    """
     columns = HISTORY_COLUMNS_TEMPLATE.format(
         browser_name="'chrome'",
         profile_label=profile_label,

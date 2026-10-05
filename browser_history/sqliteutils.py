@@ -4,7 +4,6 @@ from pathlib import Path
 
 
 def get_sqlite_journal_files(db_path: Path) -> list[Path]:
-    """Get all associated journal files for a SQLite database."""
     files = []
     if db_path.exists():
         files.append(db_path)
@@ -18,11 +17,9 @@ def get_sqlite_journal_files(db_path: Path) -> list[Path]:
 
 
 def create_clean_sqlite_db(source_paths: list[Path], temp_dir: Path) -> Path:
-    """Create a clean SQLite database from source files using VACUUM INTO."""
     if not source_paths:
         raise ValueError("source_paths must not be empty")
 
-    # Identify main database (shortest filename among journaled files)
     sorted_paths = sorted(source_paths, key=lambda p: len(p.name))
     main_db_path = sorted_paths[0]
 

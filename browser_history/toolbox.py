@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 class BrowserHistory(llm.Toolbox):  # type: ignore
-    """Toolbox allowing search through browser history."""
-
     def __init__(
         self,
         sources: Iterable[str] | None = None,
@@ -39,7 +37,6 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
         self._initialize_sources(sources)
 
     def _initialize_sources(self, sources: Iterable[str]) -> None:
-        """Initialize browser history sources."""
         browser_finders: dict[BrowserType, Callable[[], list[tuple[str, pathlib.Path]]]] = {
             "firefox": find_firefox_places_sqlite,
             "chrome": find_chrome_history_paths,
@@ -62,9 +59,7 @@ class BrowserHistory(llm.Toolbox):  # type: ignore
         return run_unified_query(unified_db, sql, {}, self.max_rows)
 
     def search(self, sql: str) -> str:
-        """Execute a SQL query against unified browser history database."""
         return json.dumps(self._do_search(sql), indent=2)
 
     def __del__(self):  # type: ignore
-        """Cleanup the unified database when the toolbox is destroyed."""
         cleanup_unified_db()

@@ -9,11 +9,13 @@ test:
 
 lint:
 	uv run ruff check .
+	uv run ast-grep scan browser_history tests
 
 vulture:
 	uv run vulture --min-confidence 55 browser_history
 
 fix:
+	uv run ast-grep scan --update-all browser_history tests
 	uv run ruff check . --fix
 	uv run ruff format .
 

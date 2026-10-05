@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 def _deduplicate_paths(candidates: list[pathlib.Path]) -> list[pathlib.Path]:
-    """Deduplicate paths while preserving order and filtering to only files."""
     seen = set()
     unique: list[pathlib.Path] = []
     for p in candidates:
@@ -19,7 +18,6 @@ def _deduplicate_paths(candidates: list[pathlib.Path]) -> list[pathlib.Path]:
 
 
 def _gather_safari_history_candidates() -> list[pathlib.Path]:
-    """Gather candidate Safari history database paths."""
     home = pathlib.Path.home()
     candidates: list[pathlib.Path] = []
     mac_history = home / "Library" / "Safari" / "History.db"
@@ -30,7 +28,6 @@ def _gather_safari_history_candidates() -> list[pathlib.Path]:
         logger.debug(f"Found Safari history at: {mac_history}")
         candidates.append(mac_history)
 
-    # Only include files with .db extension
     for pattern in (mac_history_glob,):
         logger.debug(f"Checking for Safari history with pattern: {pattern}")
         for p in glob.glob(str(pattern)):
@@ -43,22 +40,13 @@ def _gather_safari_history_candidates() -> list[pathlib.Path]:
 
 
 def find_safari_history_paths() -> list[tuple[str, pathlib.Path]]:
-    """Return list of Safari History.db paths on this system.
-
-    Currently supports macOS default location under ~/Library/Safari/History.db.
-    """
     candidates = _gather_safari_history_candidates()
     deduped_paths = _deduplicate_paths(candidates)
-    # Safari doesn't have profiles in the same way, use "default" as profile name
+
     return [("default", path) for path in deduped_paths]
 
 
 def get_safari_history_query(alias: str, profile_label: str) -> str:
-    """Generate SELECT query for Safari browser history.
-
-    Returns just the SELECT portion (without INSERT INTO) that can be used
-    with insert_selected_records.
-    """
     columns = HISTORY_COLUMNS_TEMPLATE.format(
         browser_name="'safari'",
         profile_label=profile_label,
