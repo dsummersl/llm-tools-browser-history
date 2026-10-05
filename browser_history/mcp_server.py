@@ -38,7 +38,6 @@ def make_mcp(
 ) -> FastMCP:
     mcp = FastMCP("browser-history", stateless_http=True, json_response=True)
 
-    # Pass sources and max_rows to BrowserHistory
     browser_history = BrowserHistory(
         sources, max_rows, whitelist=whitelist, db_path=None, use_cache=use_cache
     )
@@ -51,12 +50,10 @@ def make_mcp(
 
 
 def _stringify_row(row: Any) -> list[str]:
-    """Convert a row of values to strings, replacing None with empty string."""
     return [str(v) if v is not None else "" for v in row]
 
 
 def _column_widths(all_rows: list[list[str]]) -> list[int]:
-    """Compute the max width for each column across all rows (including header)."""
     widths = [0] * (len(all_rows[0]) if all_rows else 0)
     for row in all_rows:
         for i, cell in enumerate(row):
@@ -65,7 +62,6 @@ def _column_widths(all_rows: list[list[str]]) -> list[int]:
 
 
 def _format_table(headers: list[str], rows: list[Any]) -> str:
-    """Format *headers* and *rows* as an aligned text table."""
     str_rows = [_stringify_row(row) for row in rows]
     widths = _column_widths([headers] + str_rows)
     fmt = "  ".join(f"{{:<{w}}}" for w in widths)
@@ -82,7 +78,6 @@ def _run_single_query(
     sql: str,
     use_cache: bool = False,
 ) -> None:
-    """Execute a single SQL query, print a human-readable table, then exit."""
     try:
         bh = BrowserHistory(
             sources or None,

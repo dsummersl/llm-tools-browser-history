@@ -6,8 +6,6 @@ from .browser_types import HISTORY_COLUMNS_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
-MICROSECOND = 1_000_000
-
 
 def find_firefox_places_sqlite() -> list[tuple[str, Path]]:
     home = Path.home()
@@ -26,11 +24,6 @@ def find_firefox_places_sqlite() -> list[tuple[str, Path]]:
 
 
 def get_firefox_history_query(alias: str, profile_label: str) -> str:
-    """Generate SELECT query for Firefox browser history.
-
-    Returns just the SELECT portion (without INSERT INTO) that can be used
-    with insert_selected_records.
-    """
     columns = HISTORY_COLUMNS_TEMPLATE.format(
         browser_name="'firefox'",
         profile_label=profile_label,

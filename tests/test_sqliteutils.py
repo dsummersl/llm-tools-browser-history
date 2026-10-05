@@ -10,7 +10,6 @@ def test_get_sqlite_journal_files(tmp_path: Path):
     db_path = tmp_path / "test.db"
     db_path.touch()
 
-    # Create various journal/lock files
     (tmp_path / "test.db-journal").touch()
     (tmp_path / "test.db-wal").touch()
     (tmp_path / "test.db-shm").touch()
@@ -29,11 +28,9 @@ def test_get_sqlite_journal_files(tmp_path: Path):
 def test_get_sqlite_journal_files_non_existent(tmp_path: Path):
     db_path = tmp_path / "non_existent.db"
 
-    # Should return empty list if nothing exists
     files = get_sqlite_journal_files(db_path)
     assert len(files) == 0
 
-    # Should return only journals if they exist but main db doesn't (weird but possible)
     (tmp_path / "non_existent.db-journal").touch()
     files = get_sqlite_journal_files(db_path)
     assert len(files) == 1
@@ -55,7 +52,6 @@ def test_create_clean_sqlite_db_lock_file(tmp_path: Path):
     conn.commit()
     conn.close()
 
-    # Create a lock file to simulate Safari or other processes
     (tmp_path / "test_lock.db-lock").touch()
 
     source_files = get_sqlite_journal_files(db_path)
@@ -68,7 +64,6 @@ def test_create_clean_sqlite_db_lock_file(tmp_path: Path):
 
     assert clean_db_path.exists()
 
-    # Verify content
     conn = sqlite3.connect(clean_db_path)
     res = conn.execute("SELECT val FROM test").fetchone()
     assert res[0] == "locked"
@@ -84,11 +79,9 @@ def test_create_clean_sqlite_db_hot_wal(tmp_path: Path):
     conn.execute("INSERT INTO test (val) VALUES ('persistent')")
     conn.commit()
 
-    # Add data that stays in WAL (not checkpointed)
     conn.execute("INSERT INTO test (val) VALUES ('in-wal')")
     conn.commit()
 
-    # Verify WAL file exists
     wal_path = tmp_path / "hot_wal.db-wal"
     assert wal_path.exists()
 
@@ -99,15 +92,12 @@ def test_create_clean_sqlite_db_hot_wal(tmp_path: Path):
     temp_work_dir = tmp_path / "work"
     temp_work_dir.mkdir()
 
-    # Copy while connection is potentially still open or WAL is not checkpointed
     clean_db_path = create_clean_sqlite_db(source_files, temp_work_dir)
 
-    # Close original connection
     conn.close()
 
     assert clean_db_path.exists()
 
-    # Verify content in clean DB includes WAL data
     conn_clean = sqlite3.connect(clean_db_path)
     rows = conn_clean.execute("SELECT val FROM test ORDER BY val").fetchall()
     assert len(rows) == 2

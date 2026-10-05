@@ -11,11 +11,9 @@ def test_cli_log_level_debug():
         patch("browser_history.mcp_server.make_mcp") as mock_make_mcp,
         patch("browser_history.mcp_server.load_whitelist", return_value={}),
     ):
-        # Mock make_mcp to return a mock that has a run method
         mock_mcp = MagicMock()
         mock_make_mcp.return_value = mock_mcp
 
-        # Test with -l debug
         result = runner.invoke(cli, ["-l", "debug"])
 
         assert result.exit_code == 0
@@ -35,7 +33,7 @@ def test_cli_log_level_default():
         result = runner.invoke(cli, [])
 
         assert result.exit_code == 0
-        # The plan says default should be logging.WARNING
+
         mock_logging_config.assert_called_once_with(level=logging.WARNING)
 
 
@@ -119,7 +117,7 @@ def test_cli_query_error():
 def test_format_table_basic():
     output = _format_table(["name", "val"], [("alice", 1), ("bob", 2)])
     lines = output.split("\n")
-    assert len(lines) == 4  # header + separator + 2 data rows
+    assert len(lines) == 4
     assert lines[0] == "name   val"
     assert lines[1] == "-----  ---"
     assert lines[2] == "alice  1  "
@@ -129,7 +127,7 @@ def test_format_table_basic():
 def test_format_table_columns_widen_for_data():
     output = _format_table(["a", "b"], [("longvalue", "x")])
     lines = output.split("\n")
-    # Column 'a' should widen to fit 'longvalue' (9 chars)
+
     assert lines[0] == "a          b"
     assert lines[1] == "---------  -"
     assert lines[2] == "longvalue  x"
@@ -138,14 +136,14 @@ def test_format_table_columns_widen_for_data():
 def test_format_table_none_values():
     output = _format_table(["col"], [(None,), ("ok",)])
     lines = output.split("\n")
-    assert lines[2].strip() == ""  # None renders as empty string
+    assert lines[2].strip() == ""
     assert lines[3].strip() == "ok"
 
 
 def test_format_table_single_row():
     output = _format_table(["id"], [("only",)])
     lines = output.split("\n")
-    assert len(lines) == 3  # header + separator + 1 data row
+    assert len(lines) == 3
     assert lines[0] == "id  "
     assert lines[1] == "----"
     assert lines[2] == "only"

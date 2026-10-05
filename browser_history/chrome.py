@@ -1,15 +1,11 @@
 import pathlib
-import datetime
 import glob
 import logging
 
 
-from .sqliteutils import get_sqlite_journal_files, create_clean_sqlite_db
 from .browser_types import HISTORY_COLUMNS_TEMPLATE
 
 logger = logging.getLogger(__name__)
-
-WEBKIT_EPOCH = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
 
 
 def find_chrome_history_paths() -> list[tuple[str, pathlib.Path]]:
@@ -31,11 +27,6 @@ def find_chrome_history_paths() -> list[tuple[str, pathlib.Path]]:
 
 
 def get_chrome_history_query(alias: str, profile_label: str) -> str:
-    """Generate SELECT query for Chrome browser history.
-
-    Returns just the SELECT portion (without INSERT INTO) that can be used
-    with insert_selected_records.
-    """
     columns = HISTORY_COLUMNS_TEMPLATE.format(
         browser_name="'chrome'",
         profile_label=profile_label,
@@ -55,8 +46,3 @@ def get_chrome_history_query(alias: str, profile_label: str) -> str:
         LEFT JOIN {alias}.urls  r   ON r.id = pv.url
         """
     return query
-
-
-# Re-export generic SQLite functions with Chrome-specific names
-get_chrome_journal_files = get_sqlite_journal_files
-create_clean_chrome_db = create_clean_sqlite_db

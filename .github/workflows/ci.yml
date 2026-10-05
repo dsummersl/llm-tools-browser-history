@@ -28,11 +28,8 @@ jobs:
       - name: Sync deps (dev)
         run: uv sync --group dev
 
-      - name: lint
-        run: make lint
-
-      - name: test
-        run: make test
+      - name: CI
+        run: make ci
 
       - name: Upload code coverage
         if: always()

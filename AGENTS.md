@@ -38,8 +38,8 @@ make ci     # Run all CI checks (lint + type + test + radon)
 
 Writing guidance:
 
-- Only include a brief description of the thing in docstrings (no arguments or return types)
-- Do not use docstrings at the beginning of files.
+- No comments or docstrings (enforced by ast-grep rules in `.ast-grep/rules`); prefer clear naming, types, and tests
+- Use `# WHY:` only for a non-obvious rationale a reviewer would otherwise ask about
 
 ## Execution Preferences
 
