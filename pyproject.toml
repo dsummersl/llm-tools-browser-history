@@ -14,7 +14,7 @@ classifiers = [
 dependencies = [
     "click>=8.3.1",
     "llm>=0.27.1",
-    "mcp>=1.0.0",
+    "mcp>=1.0.0,<2",
     "pyyaml>=6.0",
 ]
 
