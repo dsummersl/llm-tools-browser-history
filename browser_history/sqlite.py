@@ -150,7 +150,7 @@ def _create_unified_db_connection(dest_db: Path | None, whitelist: Whitelist) ->
         conn = connect(f"file:{dest_db}?mode=rwc", uri=True)
     else:
         logger.debug("Creating in-memory unified database")
-        conn = connect(":memory:")
+        conn = connect("file::memory:", uri=True)
 
     _register_sqlite_functions(conn, whitelist)
 
